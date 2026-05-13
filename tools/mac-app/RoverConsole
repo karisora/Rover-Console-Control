@@ -61,6 +61,11 @@ bridge_pid() {
     echo "$json" | /usr/bin/sed -n 's/.*"pid":\([0-9]*\).*/\1/p'
 }
 
+bridge_serves_ui() {
+    local p="$1"
+    /usr/bin/curl -sf --max-time 1 "http://127.0.0.1:$p/" >/dev/null 2>&1
+}
+
 port_in_use() {
     local p="$1"
     /usr/bin/nc -z 127.0.0.1 "$p" 2>/dev/null
@@ -83,25 +88,15 @@ for try in 0 1 2 3 4 5; do
     json="$(bridge_health_json "$candidate")"
     if [ -n "$json" ]; then
         v="$(echo "$json" | /usr/bin/sed -n 's/.*"version":"\([^"]*\)".*/\1/p')"
-        if [ "$v" = "$EXPECTED_VERSION" ]; then
+        if [ "$v" = "$EXPECTED_VERSION" ] && bridge_serves_ui "$candidate"; then
             log_line "reusing matching bridge v$v on $candidate"
             open_in_browser "$candidate"
             exit 0
         fi
-        # Outdated or unknown bridge with our /api/healthz shape — replace it.
-        pid="$(echo "$json" | /usr/bin/sed -n 's/.*"pid":\([0-9]*\).*/\1/p')"
-        log_line "killing stale bridge (got v='${v:-unknown}') on $candidate, pid=${pid:-?}"
-        if [ -n "$pid" ]; then
-            kill "$pid" 2>/dev/null || true
-            sleep 0.3
-            kill -9 "$pid" 2>/dev/null || true
-        fi
-        # Fall through and try to use this port for the new bridge.
-        # Wait briefly for the port to free up.
-        for w in 1 2 3 4 5 6 7 8 9 10; do
-            port_in_use "$candidate" || break
-            sleep 0.1
-        done
+        # A bridge is already here, but it cannot serve the bundled UI this
+        # .app needs. Leave it alone and try the next port.
+        log_line "skipping bridge on $candidate (v='${v:-unknown}', ui unavailable)"
+        continue
     fi
     if ! port_in_use "$candidate"; then
         PORT="$candidate"
@@ -135,7 +130,7 @@ disown "$BRIDGE_PID" 2>/dev/null || true
 ready=0
 for i in $(seq 1 50); do
     v="$(bridge_version "$PORT" 2>/dev/null || true)"
-    if [ "$v" = "$EXPECTED_VERSION" ]; then
+    if [ "$v" = "$EXPECTED_VERSION" ] && bridge_serves_ui "$PORT"; then
         ready=1
         break
     fi
