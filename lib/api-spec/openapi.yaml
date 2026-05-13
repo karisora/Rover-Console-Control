@@ -1,0 +1,145 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: Rover Control API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: rover
+    description: Rover control operations
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /rover/status:
+    get:
+      operationId: getRoverStatus
+      tags: [rover]
+      summary: Check rover WiFi connectivity
+      responses:
+        "200":
+          description: Rover connection status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoverStatus"
+  /rover/command:
+    post:
+      operationId: sendRoverCommand
+      tags: [rover]
+      summary: Send a UDP command packet to the rover
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoverCommand"
+      responses:
+        "200":
+          description: Command dispatched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoverCommandResult"
+  /rover/move:
+    post:
+      operationId: sendRoverMove
+      tags: [rover]
+      summary: High-level movement command (forward/backward/rotate/stop)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoverMove"
+      responses:
+        "200":
+          description: Movement dispatched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoverCommandResult"
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    RoverStatus:
+      type: object
+      properties:
+        connected:
+          type: boolean
+        host:
+          type: string
+        port:
+          type: integer
+        latencyMs:
+          type: number
+          nullable: true
+        lastCheckedAt:
+          type: string
+        message:
+          type: string
+          nullable: true
+      required:
+        - connected
+        - host
+        - port
+        - lastCheckedAt
+    RoverCommand:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Hex device ID like "0x400"
+        value:
+          type: integer
+          description: Signed integer value (negative = reverse)
+      required:
+        - id
+        - value
+    RoverMove:
+      type: object
+      properties:
+        action:
+          type: string
+          enum: [forward, backward, rotate_left, rotate_right, strafe_left, strafe_right, stop, spell]
+        speed:
+          type: integer
+          description: 0-100 speed magnitude
+          default: 30
+      required:
+        - action
+    RoverCommandResult:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        sent:
+          type: array
+          items:
+            type: string
+        error:
+          type: string
+          nullable: true
+      required:
+        - ok
+        - sent

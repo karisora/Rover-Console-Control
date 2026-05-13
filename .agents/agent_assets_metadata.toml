@@ -1,0 +1,26 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "AWbKVH0CpcMcuqXZvyxAd"
+uri = "file://attached_assets/rover-bridge.mjs.txt"
+type = "text"
+title = "rover-bridge.mjs (download to Mac, run with: node rover-bridge.mjs.txt)"
+
+[[outputs]]
+id = "-52SsOoOvawiDGeLneTUi"
+uri = "file://attached_assets/rover-bridge-bundle.tar.gz"
+type = "unspecified"
+title = "rover-bridge-bundle (bridge standalone)"
+
+[[outputs]]
+id = "02jccAxhu0ni4Fv8WMCW5"
+uri = "file://attached_assets/RoverConsole-mac.tar.gz"
+type = "unspecified"
+title = "RoverConsole.app (シミュレーション + 月面ゲーム)"
+
+[[outputs]]
+id = "EaRUehtpPyJF62IAIrNwR"
+uri = "file://dist-mac/lumos1-console-mac.tar.gz"
+type = "unspecified"
+title = "lumos1-console-mac.tar.gz (バックグラウンド起動版)"

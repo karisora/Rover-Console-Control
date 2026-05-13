@@ -1,0 +1,152 @@
+#!/bin/bash
+# Rover Console launcher — invoked by macOS when the user opens the .app.
+#
+# Design:
+#   * The launcher is short-lived. It either re-uses an already-running bridge
+#     of the SAME version (and just re-opens the browser tab) or replaces an
+#     older one and spawns a fully detached bridge.
+#   * The bridge process lives outside the .app lifecycle. It only exits when
+#     someone hits POST /api/shutdown (the SHUTDOWN button in the UI), it gets
+#     killed because it's an outdated version, or it is killed manually.
+
+set -u
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+RESOURCES="$HERE/../Resources"
+BRIDGE_DIR="$RESOURCES/bridge"
+LOG_DIR="$HOME/Library/Logs/RoverConsole"
+mkdir -p "$LOG_DIR"
+LOG_FILE="$LOG_DIR/rover-console.log"
+
+# The bundled bridge version. Must match BRIDGE_VERSION in rover-bridge.mjs.
+EXPECTED_VERSION="2026.05.10-comms"
+
+# Make GUI tools (node installed via Homebrew, nvm, etc.) findable when launched
+# from Finder, where PATH is just /usr/bin:/bin:/usr/sbin:/sbin.
+NVM_NODE_BIN=""
+if [ -d "$HOME/.nvm/versions/node" ]; then
+    LATEST="$(ls "$HOME/.nvm/versions/node" 2>/dev/null | tail -1)"
+    if [ -n "$LATEST" ]; then
+        NVM_NODE_BIN="$HOME/.nvm/versions/node/$LATEST/bin"
+    fi
+fi
+export PATH="/opt/homebrew/bin:/usr/local/bin:$NVM_NODE_BIN:$HOME/.volta/bin:$HOME/.fnm/aliases/default/bin:$PATH"
+if [ -s "$HOME/.nvm/nvm.sh" ]; then
+    # shellcheck disable=SC1091
+    . "$HOME/.nvm/nvm.sh" >/dev/null 2>&1 || true
+fi
+
+show_error() {
+    local msg="$1"
+    /usr/bin/osascript -e "display dialog \"${msg//\"/\\\"}\" with title \"Rover Console\" buttons {\"OK\"} default button 1 with icon stop" >/dev/null 2>&1 || true
+}
+
+bridge_health_json() {
+    local p="$1"
+    /usr/bin/curl -sf --max-time 1 "http://127.0.0.1:$p/api/healthz" 2>/dev/null
+}
+
+bridge_version() {
+    local json
+    json="$(bridge_health_json "$1")" || return 1
+    [ -z "$json" ] && return 1
+    # Crude JSON extraction — avoids depending on jq.
+    echo "$json" | /usr/bin/sed -n 's/.*"version":"\([^"]*\)".*/\1/p'
+}
+
+bridge_pid() {
+    local json
+    json="$(bridge_health_json "$1")" || return 1
+    [ -z "$json" ] && return 1
+    echo "$json" | /usr/bin/sed -n 's/.*"pid":\([0-9]*\).*/\1/p'
+}
+
+port_in_use() {
+    local p="$1"
+    /usr/bin/nc -z 127.0.0.1 "$p" 2>/dev/null
+}
+
+open_in_browser() {
+    /usr/bin/open "http://127.0.0.1:$1/"
+}
+
+log_line() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOG_FILE"
+}
+
+log_line "----- launcher start (expected v$EXPECTED_VERSION) -----"
+
+# 1. Walk candidate ports. Reuse if same version, kill if outdated, skip if foreign.
+PORT=""
+for try in 0 1 2 3 4 5; do
+    candidate=$((5050 + try))
+    json="$(bridge_health_json "$candidate")"
+    if [ -n "$json" ]; then
+        v="$(echo "$json" | /usr/bin/sed -n 's/.*"version":"\([^"]*\)".*/\1/p')"
+        if [ "$v" = "$EXPECTED_VERSION" ]; then
+            log_line "reusing matching bridge v$v on $candidate"
+            open_in_browser "$candidate"
+            exit 0
+        fi
+        # Outdated or unknown bridge with our /api/healthz shape — replace it.
+        pid="$(echo "$json" | /usr/bin/sed -n 's/.*"pid":\([0-9]*\).*/\1/p')"
+        log_line "killing stale bridge (got v='${v:-unknown}') on $candidate, pid=${pid:-?}"
+        if [ -n "$pid" ]; then
+            kill "$pid" 2>/dev/null || true
+            sleep 0.3
+            kill -9 "$pid" 2>/dev/null || true
+        fi
+        # Fall through and try to use this port for the new bridge.
+        # Wait briefly for the port to free up.
+        for w in 1 2 3 4 5 6 7 8 9 10; do
+            port_in_use "$candidate" || break
+            sleep 0.1
+        done
+    fi
+    if ! port_in_use "$candidate"; then
+        PORT="$candidate"
+        break
+    fi
+done
+
+if [ -z "${PORT:-}" ]; then
+    show_error "Could not find a free port between 5050 and 5055.\nPlease close other apps using those ports and try again."
+    exit 1
+fi
+
+# 2. Locate node.
+NODE_BIN="$(command -v node || true)"
+if [ -z "$NODE_BIN" ]; then
+    show_error "Node.js was not found.\n\nPlease install Node.js 18 or newer from https://nodejs.org and then re-open Rover Console."
+    exit 1
+fi
+
+log_line "spawning bridge v$EXPECTED_VERSION on port $PORT (node: $NODE_BIN)"
+
+# 3. Spawn bridge fully detached — survives launcher exit.
+export BRIDGE_PORT="$PORT"
+export BRIDGE_HOST="127.0.0.1"
+cd "$BRIDGE_DIR"
+nohup "$NODE_BIN" "$BRIDGE_DIR/rover-bridge.mjs" >> "$LOG_FILE" 2>&1 &
+BRIDGE_PID=$!
+disown "$BRIDGE_PID" 2>/dev/null || true
+
+# 4. Wait for the bridge to start serving (up to ~5 s).
+ready=0
+for i in $(seq 1 50); do
+    v="$(bridge_version "$PORT" 2>/dev/null || true)"
+    if [ "$v" = "$EXPECTED_VERSION" ]; then
+        ready=1
+        break
+    fi
+    sleep 0.1
+done
+
+if [ "$ready" -ne 1 ]; then
+    show_error "Rover Console failed to start the local bridge on port $PORT.\n\nSee the log at:\n$LOG_FILE"
+    exit 1
+fi
+
+log_line "bridge ready on $PORT, opening browser"
+open_in_browser "$PORT"
+exit 0
