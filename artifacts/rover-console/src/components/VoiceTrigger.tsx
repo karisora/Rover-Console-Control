@@ -7,6 +7,77 @@ import { useTelemetry } from "./TelemetryContext";
 
 type SR = any;
 
+const LUMOS_GRAMMAR =
+  "#JSGF V1.0; grammar spell; public <spell> = lumos | lumo's | ルーモス | ルモス ;";
+const LUMOS_ROMANIZED_FORMS = [
+  "lumos",
+  "lumo",
+  "lumis",
+  "lumi",
+  "lumas",
+  "luma",
+  "lomos",
+  "lomo",
+  "loomos",
+  "loomo",
+  "loomoss",
+  "lumous",
+  "luminous",
+  "rumos",
+  "rumo",
+  "rumis",
+  "rumi",
+  "rumas",
+  "ruma",
+];
+const LUMOS_KANA_PATTERN =
+  /(ルー?モー?ス?|るー?もー?す?|リュー?モー?ス?|りゅー?もー?す?)/;
+const FATAL_SPEECH_ERRORS = new Set([
+  "audio-capture",
+  "language-not-supported",
+  "not-allowed",
+  "service-not-allowed",
+]);
+const FIRE_COOLDOWN_MS = 900;
+const TRANSCRIPT_MEMORY_MS = 2200;
+
+function getPreferredSpeechLanguage() {
+  const language =
+    navigator.languages?.find((value) => /^ja\b/i.test(value)) ??
+    navigator.language ??
+    document.documentElement.lang;
+  return /^ja\b/i.test(language) ? "ja-JP" : "en-US";
+}
+
+function normalizeSpeechText(text: string) {
+  return text
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/[\s'"`’.,!?;:()[\]{}<>_-]+/g, "");
+}
+
+function isLumosTranscript(text: string) {
+  const normalized = normalizeSpeechText(text);
+  return (
+    LUMOS_ROMANIZED_FORMS.some((form) => normalized.includes(form)) ||
+    LUMOS_KANA_PATTERN.test(normalized)
+  );
+}
+
+function collectTranscripts(event: any) {
+  const transcripts: string[] = [];
+  for (let i = event.resultIndex; i < event.results.length; i++) {
+    const result = event.results[i];
+    for (let j = 0; j < result.length; j++) {
+      const transcript = result[j]?.transcript?.trim();
+      if (transcript) {
+        transcripts.push(transcript);
+      }
+    }
+  }
+  return transcripts;
+}
+
 export function VoiceTrigger() {
   const sendMove = useSendRoverMove();
   const { addLog } = useTelemetry();
@@ -16,6 +87,7 @@ export function VoiceTrigger() {
   const [transcript, setTranscript] = useState<string>("");
   const [flash, setFlash] = useState(0);
   const recRef = useRef<SR | null>(null);
+  const transcriptMemoryRef = useRef<Array<{ text: string; at: number }>>([]);
   const lastFireRef = useRef<number>(0);
   const sendRef = useRef(sendMove.mutate);
   sendRef.current = sendMove.mutate;
@@ -33,7 +105,7 @@ export function VoiceTrigger() {
 
   const fireSpell = useCallback(() => {
     const now = Date.now();
-    if (now - lastFireRef.current < 1500) return;
+    if (now - lastFireRef.current < FIRE_COOLDOWN_MS) return;
     lastFireRef.current = now;
     setFlash((n) => n + 1);
     sendRef.current(
@@ -50,31 +122,56 @@ export function VoiceTrigger() {
   const start = useCallback(() => {
     const w = window as any;
     const SR = w.SpeechRecognition || w.webkitSpeechRecognition;
-    if (!SR) return;
+    if (!SR || recRef.current) return;
     const rec: SR = new SR();
     rec.continuous = true;
     rec.interimResults = true;
-    rec.lang = "en-US";
+    rec.maxAlternatives = 10;
+    rec.lang = getPreferredSpeechLanguage();
+
+    const GrammarList = w.SpeechGrammarList || w.webkitSpeechGrammarList;
+    if (GrammarList) {
+      const grammarList = new GrammarList();
+      grammarList.addFromString(LUMOS_GRAMMAR, 1);
+      rec.grammars = grammarList;
+    }
 
     rec.onresult = (event: any) => {
-      let text = "";
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        text += event.results[i][0].transcript;
-      }
-      setTranscript(text);
-      if (/lumos/i.test(text)) {
+      const transcripts = collectTranscripts(event);
+      const now = Date.now();
+      transcriptMemoryRef.current = [
+        ...transcriptMemoryRef.current.filter(
+          (entry) => now - entry.at < TRANSCRIPT_MEMORY_MS,
+        ),
+        ...transcripts.map((text) => ({ text, at: now })),
+      ].slice(-24);
+
+      const bufferedTranscript = transcriptMemoryRef.current
+        .map((entry) => entry.text)
+        .join(" ");
+      setTranscript(transcripts[0] ?? bufferedTranscript);
+      if ([...transcripts, bufferedTranscript].some(isLumosTranscript)) {
         fireSpell();
       }
     };
-    rec.onerror = () => {
-      // restart on transient errors while still active
+    rec.onerror = (event: any) => {
+      const error = event?.error;
+      if (FATAL_SPEECH_ERRORS.has(error)) {
+        recRef.current = null;
+        setListening(false);
+        setTranscript("");
+        addLogRef.current(`VOICE ERROR: ${error}`, "failed");
+      }
     };
     rec.onend = () => {
       // Auto-restart while still in listening mode
       if (recRef.current === rec) {
-        try {
-          rec.start();
-        } catch {}
+        window.setTimeout(() => {
+          if (recRef.current !== rec) return;
+          try {
+            rec.start();
+          } catch {}
+        }, 80);
       }
     };
 
@@ -90,6 +187,7 @@ export function VoiceTrigger() {
   const stop = useCallback(() => {
     const rec = recRef.current;
     recRef.current = null;
+    transcriptMemoryRef.current = [];
     setListening(false);
     setTranscript("");
     if (rec) {
@@ -108,7 +206,7 @@ export function VoiceTrigger() {
         <div className="flex items-center gap-2">
           <Zap className="w-4 h-4 text-accent" />
           <span className="font-mono text-[10px] tracking-[0.3em] uppercase text-muted-foreground">
-            Voice Spell · "Lumos"
+            Voice Spell · "Lumos / ルーモス"
           </span>
         </div>
         {!supported && (
@@ -146,7 +244,7 @@ export function VoiceTrigger() {
             <span className="truncate text-foreground/80">
               {transcript || (
                 <span className="text-muted-foreground italic">
-                  say "lumos" to fire 0x450,0…
+                  say "lumos" / "ルーモス" to fire 0x450,0…
                 </span>
               )}
             </span>
