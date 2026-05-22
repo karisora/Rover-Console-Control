@@ -1,0 +1,71 @@
+import { RoverViewer } from "@/components/RoverViewer";
+import { SpeedControl } from "@/components/SpeedControl";
+import { TelemetryLog } from "@/components/TelemetryLog";
+import { SimApiProvider } from "@/components/sim/SimApiContext";
+import { SimCameraPanel, SimTelemetryPanel } from "@/components/sim/SimTelemetryPanel";
+import { SimConnectionPanel, SimDriveControls } from "@/components/sim/SimControlPanel";
+
+export default function SimToReal() {
+  return (
+    <SimApiProvider>
+      <main className="flex-1 max-w-[1440px] w-full mx-auto px-4 md:px-6 py-4 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_400px] gap-4 lg:gap-5">
+        <div className="flex flex-col gap-4 lg:gap-5 min-w-0">
+          <section>
+            <SectionLabel num="01" title="Rover Visualizer" />
+            <RoverViewer />
+          </section>
+
+          <section>
+            <SectionLabel num="02" title="Gazebo Session" />
+            <SimConnectionPanel />
+          </section>
+
+          <section>
+            <SectionLabel num="03" title="Simulation Drive Controls" />
+            <SimDriveControls />
+          </section>
+
+          <section>
+            <SectionLabel num="04" title="Throttle" />
+            <SpeedControl />
+          </section>
+        </div>
+
+        <aside className="flex flex-col gap-4 lg:gap-5 min-w-0">
+          <section>
+            <SectionLabel num="05" title="Camera" />
+            <SimCameraPanel />
+          </section>
+          <section>
+            <SectionLabel num="06" title="State" />
+            <SimTelemetryPanel />
+          </section>
+          <section className="flex flex-col flex-1 min-h-0">
+            <SectionLabel num="07" title="API Stream" />
+            <div className="flex-1 min-h-[280px] lg:min-h-[320px]">
+              <TelemetryLog />
+            </div>
+          </section>
+        </aside>
+      </main>
+      <footer className="border-t border-border px-4 md:px-6 py-2 font-mono text-[10px] tracking-[0.25em] uppercase text-muted-foreground flex justify-between flex-wrap gap-2">
+        <span>Sim-to-real console · Gazebo / ROS 2 bridge</span>
+        <span>Keys: W/S Drive · A/D Rotate · Q/E Veer · Space Stop</span>
+      </footer>
+    </SimApiProvider>
+  );
+}
+
+function SectionLabel({ num, title }: { num: string; title: string }) {
+  return (
+    <div className="flex items-baseline gap-3 mb-2">
+      <span className="font-mono text-[10px] text-primary tracking-[0.3em]">
+        {num}
+      </span>
+      <span className="font-mono text-[10px] text-muted-foreground tracking-[0.3em] uppercase">
+        {title}
+      </span>
+      <span className="flex-1 h-px bg-border" />
+    </div>
+  );
+}

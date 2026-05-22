@@ -19,7 +19,7 @@ mkdir -p "$LOG_DIR"
 LOG_FILE="$LOG_DIR/rover-console.log"
 
 # The bundled bridge version. Must match BRIDGE_VERSION in rover-bridge.mjs.
-EXPECTED_VERSION="2026.05.10-comms"
+EXPECTED_VERSION="2026.05.22-sim-to-real"
 
 # Make GUI tools (node installed via Homebrew, nvm, etc.) findable when launched
 # from Finder, where PATH is just /usr/bin:/bin:/usr/sbin:/sbin.
@@ -93,9 +93,26 @@ for try in 0 1 2 3 4 5; do
             open_in_browser "$candidate"
             exit 0
         fi
-        # A bridge is already here, but it cannot serve the bundled UI this
-        # .app needs. Leave it alone and try the next port.
-        log_line "skipping bridge on $candidate (v='${v:-unknown}', ui unavailable)"
+        if [ -n "$v" ]; then
+            pid="$(bridge_pid "$candidate" 2>/dev/null || true)"
+            if [ -n "$pid" ]; then
+                log_line "stopping outdated bridge on $candidate (v='${v:-unknown}', pid=$pid)"
+                /bin/kill "$pid" >/dev/null 2>&1 || true
+                for _ in $(seq 1 30); do
+                    if ! port_in_use "$candidate"; then
+                        PORT="$candidate"
+                        break
+                    fi
+                    sleep 0.1
+                done
+                if [ -n "${PORT:-}" ]; then
+                    break
+                fi
+            fi
+        fi
+        # Something responded to healthz, but it does not look like a bridge
+        # we can safely replace. Leave it alone and try the next port.
+        log_line "skipping service on $candidate (v='${v:-unknown}', ui unavailable)"
         continue
     fi
     if ! port_in_use "$candidate"; then

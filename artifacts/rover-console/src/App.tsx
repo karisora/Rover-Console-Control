@@ -10,19 +10,37 @@ import { TabNav, type AppTab } from "@/components/TabNav";
 import { StatusHeader } from "@/components/StatusHeader";
 import Home from "@/pages/Home";
 import DesignLab from "@/pages/DesignLab";
+import SimToReal from "@/pages/SimToReal";
 import NotFound from "@/pages/not-found";
 
 const queryClient = new QueryClient();
 
+function tabFromHash(): AppTab {
+  if (window.location.hash === "#design") return "design";
+  if (window.location.hash === "#sim-to-real") return "sim-to-real";
+  return "operation";
+}
+
+function hashForTab(tab: AppTab): string {
+  if (tab === "operation") return "";
+  return `#${tab}`;
+}
+
 function AppShell() {
-  const [tab, setTab] = useState<AppTab>(
-    () => (window.location.hash === "#design" ? "design" : "operation")
-  );
+  const [tab, setTab] = useState<AppTab>(() => tabFromHash());
+
+  const handleTabChange = (next: AppTab) => {
+    setTab(next);
+    const nextHash = hashForTab(next);
+    const nextUrl = `${window.location.pathname}${window.location.search}${nextHash}`;
+    window.history.replaceState(null, "", nextUrl);
+  };
+
   return (
     <div className="min-h-screen flex flex-col">
       <StatusHeader />
-      <TabNav active={tab} onChange={setTab} />
-      {tab === "operation" ? <Home /> : <DesignLab />}
+      <TabNav active={tab} onChange={handleTabChange} />
+      {tab === "operation" ? <Home /> : tab === "sim-to-real" ? <SimToReal /> : <DesignLab />}
     </div>
   );
 }

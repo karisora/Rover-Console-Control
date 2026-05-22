@@ -28,7 +28,7 @@ const HEARTBEAT_VALUE = Number(process.env.HEARTBEAT_VALUE || 0);
 const HEARTBEAT_INTERVAL_MS = Number(process.env.HEARTBEAT_INTERVAL_MS || 1000);
 // Bumped whenever the bridge wire protocol changes. The launcher uses this
 // to detect a stale older bridge process and kill it before reusing.
-const BRIDGE_VERSION = "2026.05.10-comms";
+const BRIDGE_VERSION = "2026.05.22-sim-to-real";
 
 // Runtime diagnostics surfaced via /api/healthz so we can debug from the UI.
 const stats = {
