@@ -3,7 +3,7 @@ import { useRoverParams, type RoverParams } from "./RoverParamsContext";
 
 interface SliderRowProps {
   label: string;
-  labelJa: string;
+  hint: string;
   value: number;
   min: number;
   max: number;
@@ -12,7 +12,7 @@ interface SliderRowProps {
   field: keyof RoverParams;
 }
 
-function SliderRow({ label, labelJa, value, min, max, step, unit, field }: SliderRowProps) {
+function SliderRow({ label, hint, value, min, max, step, unit, field }: SliderRowProps) {
   const { setParam } = useRoverParams();
   const pct = ((value - min) / (max - min)) * 100;
 
@@ -21,7 +21,7 @@ function SliderRow({ label, labelJa, value, min, max, step, unit, field }: Slide
       <div className="flex justify-between items-baseline">
         <div>
           <span className="font-mono text-[10px] tracking-[0.2em] uppercase text-muted-foreground">{label}</span>
-          <span className="ml-2 text-[10px] text-muted-foreground/60">{labelJa}</span>
+          <span className="ml-2 text-[10px] text-muted-foreground/60">{hint}</span>
         </div>
         <span className="font-mono text-xs text-primary tabular-nums">
           {step < 1 ? value.toFixed(2) : value}
@@ -55,7 +55,7 @@ export function StructurePanel() {
       <div className="flex items-center justify-between">
         <div>
           <p className="font-mono text-[10px] tracking-[0.3em] uppercase text-primary">Structure Params</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">構造パラメーター</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">Geometry and drive parameters</p>
         </div>
         <button
           onClick={reset}
@@ -69,31 +69,31 @@ export function StructurePanel() {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
         <div className="flex flex-col gap-4">
           <p className="font-mono text-[10px] tracking-[0.2em] text-muted-foreground/60 uppercase">Geometry</p>
-          <SliderRow label="Wheel Base" labelJa="ホイールベース" value={params.wheelBase} min={80} max={300} step={1} unit="mm" field="wheelBase" />
-          <SliderRow label="Wheel Radius" labelJa="タイヤ半径" value={params.wheelRadius} min={20} max={80} step={1} unit="mm" field="wheelRadius" />
+          <SliderRow label="Wheel Base" hint="Track width" value={params.wheelBase} min={80} max={300} step={1} unit="mm" field="wheelBase" />
+          <SliderRow label="Wheel Radius" hint="Rolling radius" value={params.wheelRadius} min={20} max={80} step={1} unit="mm" field="wheelRadius" />
         </div>
         <div className="flex flex-col gap-4">
           <p className="font-mono text-[10px] tracking-[0.2em] text-muted-foreground/60 uppercase">Drive</p>
-          <SliderRow label="Max Speed" labelJa="最大速度" value={params.maxSpeed} min={20} max={100} step={1} unit="PWM%" field="maxSpeed" />
-          <SliderRow label="VEER Inner Ratio" labelJa="ベア内側比率" value={params.innerRatio} min={0} max={0.9} step={0.05} unit="" field="innerRatio" />
+          <SliderRow label="Max Speed" hint="PWM limit" value={params.maxSpeed} min={20} max={100} step={1} unit="PWM%" field="maxSpeed" />
+          <SliderRow label="VEER Inner Ratio" hint="Inner wheel ratio" value={params.innerRatio} min={0} max={0.9} step={0.05} unit="" field="innerRatio" />
         </div>
       </div>
 
       <div className="border-t border-border pt-3 grid grid-cols-2 gap-4">
         <div className="flex flex-col gap-4">
           <p className="font-mono text-[10px] tracking-[0.2em] text-muted-foreground/60 uppercase">Simulation Speed</p>
-          <SliderRow label="VEER Throttle" labelJa="ベアスロットル" value={params.veerThrottle} min={10} max={100} step={1} unit="%" field="veerThrottle" />
+          <SliderRow label="VEER Throttle" hint="Curve command speed" value={params.veerThrottle} min={10} max={100} step={1} unit="%" field="veerThrottle" />
         </div>
         <div className="flex flex-col gap-4">
           <p className="font-mono text-[10px] tracking-[0.2em] text-muted-foreground/60 uppercase">&nbsp;</p>
-          <SliderRow label="Rotate Throttle" labelJa="回転スロットル" value={params.rotateThrottle} min={10} max={100} step={1} unit="%" field="rotateThrottle" />
+          <SliderRow label="Rotate Throttle" hint="Spin command speed" value={params.rotateThrottle} min={10} max={100} step={1} unit="%" field="rotateThrottle" />
         </div>
       </div>
 
       <div className="border-t border-border pt-3 grid grid-cols-3 gap-3 font-mono text-[10px]">
-        <Stat label="旋回半径 (VEER-R)" value={`${Math.round(params.wheelBase / 2 * (1 + params.innerRatio) / (1 - params.innerRatio))} mm`} />
-        <Stat label="外周速度" value={`${Math.round(params.maxSpeed * params.veerThrottle / 100)} PWM`} />
-        <Stat label="内側速度" value={`${Math.round(params.maxSpeed * params.veerThrottle / 100 * params.innerRatio)} PWM`} />
+        <Stat label="Turn Radius (VEER-R)" value={`${Math.round(params.wheelBase / 2 * (1 + params.innerRatio) / (1 - params.innerRatio))} mm`} />
+        <Stat label="Outer Speed" value={`${Math.round(params.maxSpeed * params.veerThrottle / 100)} PWM`} />
+        <Stat label="Inner Speed" value={`${Math.round(params.maxSpeed * params.veerThrottle / 100 * params.innerRatio)} PWM`} />
       </div>
     </div>
   );

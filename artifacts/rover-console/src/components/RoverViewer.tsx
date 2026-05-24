@@ -13,7 +13,7 @@ class WebGLErrorBoundary extends Component<{ children: ReactNode }, { failed: bo
         <div className="flex items-center justify-center h-full bg-slate-950 text-muted-foreground font-mono text-[10px] tracking-widest flex-col gap-2">
           <span className="text-2xl">🚀</span>
           <span>3D VIEW · WebGL unavailable in this environment</span>
-          <span className="text-[9px] opacity-50">macOS .app では正常に動作します</span>
+          <span className="text-[9px] opacity-50">The macOS app can render this view normally</span>
         </div>
       );
     }

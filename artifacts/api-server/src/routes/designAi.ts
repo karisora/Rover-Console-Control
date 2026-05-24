@@ -103,21 +103,25 @@ router.post("/design/analysis", async (req: Request, res: Response) => {
   try {
     const payload = asRecord(req.body);
     const system = [
-      "あなたは惑星・月面探査ローバーの設計レビューに特化したAIです。",
-      "与えられた構造パラメーター、ミッション条件、搭載モジュール、ローカル物理スコアを使い、設計候補を現実的に評価してください。",
-      "質量30kg級の小型ローバーを想定し、安全率、重心、消費電力、地形適応、科学価値を重視します。",
-      "出力はJSONのみ。markdownや説明文をJSONの外に出さないでください。",
+      "You are an AI specialized in planetary and lunar exploration rover design review.",
+      "Use the provided structure parameters, mission conditions, mounted modules, and physics candidate scores to choose the rover form.",
+      "Assume a small rover near the 30 kg class. Prioritize safety margin, center of mass, power, terrain adaptability, and science value.",
+      "Adopt only the minimum safety mechanisms needed for a credible rover: basic stability margin, traction appropriate to the terrain, essential fault tolerance, and enough power margin for the mission.",
+      "Among rover forms that satisfy those minimum safety requirements, prefer the lowest-cost, simplest, and easiest-to-build option.",
+      "Do not choose an expensive or complex rover form unless the cheaper forms fail the minimum safety requirements for the selected terrain, payload, or mission duration.",
+      "The final ranking must be your AI design judgment, not a blind copy of the heuristic scores.",
+      "Return JSON only. Do not put markdown or prose outside the JSON object.",
     ].join("\n");
     const schema = {
       recommendations: [
         {
           id: "4wheel | 6wheel | crawler | legged",
           score: 0,
-          reasons: ["日本語で短く、最大4件"],
-          warnings: ["日本語で短く、必要な場合のみ"],
+          reasons: ["short English reason, max 4 items"],
+          warnings: ["short English warning, only when needed"],
         },
       ],
-      narrative: "日本語で2文以内の総評",
+      narrative: "English summary in 2 sentences or fewer",
     };
 
     const content = await callRoverModel(req, [
@@ -125,7 +129,7 @@ router.post("/design/analysis", async (req: Request, res: Response) => {
       {
         role: "user",
         content: [
-          "以下の設計状態を評価して、JSONスキーマに沿って推薦候補を返してください。",
+          "Evaluate this rover design state and return the recommendation in the requested JSON schema.",
           `JSON schema: ${JSON.stringify(schema)}`,
           `Design state: ${JSON.stringify(payload)}`,
         ].join("\n\n"),
@@ -162,9 +166,10 @@ router.post("/design/chat", async (req: Request, res: Response) => {
       {
         role: "system",
         content: [
-          "あなたは惑星・月面探査ローバー設計LABの相談AIです。",
-          "現在の設計条件を前提に、実装可能で検証しやすい助言を日本語で返してください。",
-          "回答は簡潔に。必要なら推奨変更、理由、注意点を分けてください。",
+          "You are the consultation AI for a planetary and lunar rover design lab.",
+          "Use the current design context and reply in English with practical, testable engineering advice.",
+          "Favor low-cost choices that still meet minimum credible safety requirements. Avoid adding expensive redundancy or complex mechanisms unless they directly reduce a clear mission risk.",
+          "Keep the answer concise. When helpful, separate recommended changes, rationale, and cautions.",
           `Current design context: ${JSON.stringify(context)}`,
         ].join("\n"),
       },

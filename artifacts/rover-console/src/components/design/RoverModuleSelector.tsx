@@ -43,7 +43,7 @@ function ModulePicker({
         <div className="flex items-center justify-between">
           <div>
             <p className="font-mono text-[10px] text-primary tracking-widest uppercase">{SLOT_META[slotId].label}</p>
-            <p className="text-sm font-semibold">モジュール選択</p>
+            <p className="text-sm font-semibold">Select Module</p>
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors"><X className="w-4 h-4" /></button>
         </div>
@@ -52,7 +52,7 @@ function ModulePicker({
           onClick={() => { onSelect(null); onClose(); }}
           className={`flex items-center gap-2 px-3 py-2 rounded border text-[11px] transition-colors text-left ${currentModuleId === null ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-muted/40"}`}
         >
-          <span className="text-base">➖</span><span>なし（空き）</span>
+          <span className="text-base">➖</span><span>None (empty slot)</span>
         </button>
 
         {Object.entries(byCategory).map(([cat, modules]) => (
@@ -69,7 +69,7 @@ function ModulePicker({
                 <span className="text-base flex-shrink-0">{m.icon}</span>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline gap-1.5">
-                    <span className="font-medium">{m.labelJa}</span>
+                    <span className="font-medium">{m.label}</span>
                     <span className="text-muted-foreground text-[9px] font-mono">{m.weightKg}kg · {m.powerW > 0 ? `+${m.powerW}W` : `${m.powerW}W`} · ${m.costM}M</span>
                   </div>
                   <span className="text-muted-foreground text-[10px]">{m.description}</span>
@@ -101,11 +101,11 @@ function RoverSchematic({
     mod ? (
       <>
         <text x={sr.x + sr.w / 2} y={sr.y + sr.h / 2 - 8} fontSize={16} textAnchor="middle" dominantBaseline="middle">{mod.icon}</text>
-        <text x={sr.x + sr.w / 2} y={sr.y + sr.h / 2 + 10} fontSize={7.5} fill={mod.color} textAnchor="middle" fontFamily="monospace">{mod.labelJa}</text>
+        <text x={sr.x + sr.w / 2} y={sr.y + sr.h / 2 + 10} fontSize={7.5} fill={mod.color} textAnchor="middle" fontFamily="monospace">{mod.label}</text>
       </>
     ) : (
       <>
-        <text x={sr.x + sr.w / 2} y={sr.y + sr.h / 2 - 5} fontSize={11} fill="#475569" textAnchor="middle" dominantBaseline="middle">＋</text>
+        <text x={sr.x + sr.w / 2} y={sr.y + sr.h / 2 - 5} fontSize={11} fill="#475569" textAnchor="middle" dominantBaseline="middle">+</text>
         <text x={sr.x + sr.w / 2} y={sr.y + sr.h / 2 + 8} fontSize={7} fill="#475569" textAnchor="middle" fontFamily="monospace">{SLOT_META[sr.id].labelJa}</text>
       </>
     );
@@ -200,17 +200,17 @@ export function RoverModuleSelector({ config, onChange }: { config: MissionConfi
       <div className="px-4 py-2.5 border-b border-border flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="font-mono text-[10px] tracking-[0.3em] uppercase text-primary">Module Placement</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">搭載モジュール配置 — スロットをクリックして選択</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">Click a slot to assign a payload module</p>
         </div>
         <div className="flex items-center gap-4 font-mono text-[10px]">
-          <span className="text-muted-foreground">消費電力 <span className={totalPower > 0 ? "text-orange-400" : totalPower < 0 ? "text-emerald-400" : "text-primary"}>{totalPower > 0 ? `+${totalPower}` : totalPower} W</span></span>
-          <span className="text-muted-foreground">モジュール費 <span className="text-yellow-400">~${totalCost.toFixed(1)}M</span></span>
+          <span className="text-muted-foreground">Power <span className={totalPower > 0 ? "text-orange-400" : totalPower < 0 ? "text-emerald-400" : "text-primary"}>{totalPower > 0 ? `+${totalPower}` : totalPower} W</span></span>
+          <span className="text-muted-foreground">Module Cost <span className="text-yellow-400">~${totalCost.toFixed(1)}M</span></span>
         </div>
       </div>
 
       {/* Mass budget bar */}
       <div className="px-4 py-2 border-b border-border/60 bg-muted/5 flex items-center gap-3">
-        <span className="font-mono text-[9px] text-muted-foreground tracking-widest flex-shrink-0">総質量</span>
+        <span className="font-mono text-[9px] text-muted-foreground tracking-widest flex-shrink-0">TOTAL MASS</span>
         <div className="flex-1 h-2 bg-muted/30 rounded-full overflow-hidden">
           <div
             className="h-full rounded-full transition-all duration-300"
@@ -222,18 +222,18 @@ export function RoverModuleSelector({ config, onChange }: { config: MissionConfi
         </span>
         {massOver && (
           <span className="font-mono text-[8px] text-red-400 border border-red-400/50 rounded px-1 bg-red-400/10 flex-shrink-0">
-            ⚠ 超過
+            OVER
           </span>
         )}
         <span className="font-mono text-[9px] text-muted-foreground/50 flex-shrink-0">
-          (シャーシ {CHASSIS_KG} + モジュール {totalModuleKg.toFixed(1)} kg)
+          (chassis {CHASSIS_KG} + modules {totalModuleKg.toFixed(1)} kg)
         </span>
       </div>
 
       <div className="relative bg-[#020c18] px-4 py-3">
         <RoverSchematic config={config} activeSlot={activeSlot} onSlotClick={(id) => setActiveSlot((p) => (p === id ? null : id))} />
         <p className="text-center font-mono text-[9px] text-muted-foreground/40 mt-1 tracking-widest">
-          CLICK SLOT TO ASSIGN MODULE · 下部スロットはボディ底面に埋め込み搭載
+          CLICK SLOT TO ASSIGN MODULE - BELLY SLOT IS PARTIALLY EMBEDDED UNDER THE BODY
         </p>
         {activeSlot && (
           <ModulePicker
@@ -264,7 +264,7 @@ export function RoverModuleSelector({ config, onChange }: { config: MissionConfi
             >
               <span>{mod ? mod.icon : "➕"}</span>
               <span className="font-mono">{SLOT_META[sid].labelJa}</span>
-              {mod && <span className="text-muted-foreground">· {mod.labelJa}</span>}
+              {mod && <span className="text-muted-foreground">· {mod.label}</span>}
             </button>
           );
         })}

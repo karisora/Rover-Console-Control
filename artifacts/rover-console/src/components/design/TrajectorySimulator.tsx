@@ -271,7 +271,7 @@ export function TrajectorySimulator() {
       <div className="px-4 pt-3 pb-2 flex items-center justify-between">
         <div>
           <p className="font-mono text-[10px] tracking-[0.3em] uppercase text-primary">Trajectory Simulator</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">軌跡シミュレーター</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">Local drive-path preview</p>
         </div>
         <div className="flex gap-2">
           {!running ? (
@@ -323,10 +323,10 @@ export function TrajectorySimulator() {
         </div>
         <div className="ml-auto flex flex-wrap gap-3 text-[9px] font-mono text-muted-foreground">
           {[
-            { action: "forward" as Action,      label: "前進" },
-            { action: "backward" as Action,     label: "後退" },
-            { action: "rotate_left" as Action,  label: "その場回転" },
-            { action: "veer_left" as Action,    label: "ベア旋回" },
+            { action: "forward" as Action,      label: "Forward" },
+            { action: "backward" as Action,     label: "Reverse" },
+            { action: "rotate_left" as Action,  label: "Rotate" },
+            { action: "veer_left" as Action,    label: "Veer" },
           ].map(({ action, label }) => (
             <span key={action} className="flex items-center gap-1">
               <span className="w-3 h-1 rounded-full inline-block" style={{ background: actionColor(action) }} />

@@ -28,16 +28,16 @@ function computeTimeline(config: MissionConfig, optimalRoverId: string) {
 
   // Phase durations (months)
   const phases = [
-    { id: "concept",   label: "コンセプト設計",       labelEn: "Concept Study",          months: 6,                                          color: "#22d3ee" },
-    { id: "pdr",       label: "基本設計審査 (PDR)",    labelEn: "Preliminary Design",     months: Math.round(8 + complexity * 1.2),           color: "#34d399" },
-    { id: "cdr",       label: "詳細設計・製造 (CDR)",  labelEn: "Detail Design & Build",  months: Math.round(10 + complexity * 1.8),          color: "#fb923c" },
-    { id: "test",      label: "統合・環境試験",         labelEn: "Integration & Test",     months: Math.round(6 + complexity * 1.0),           color: "#a78bfa" },
-    { id: "campaign",  label: "打ち上げキャンペーン",   labelEn: "Launch Campaign",        months: 4,                                          color: "#fbbf24" },
+    { id: "concept",   label: "Concept Study",        labelEn: "Concept Study",          months: 6,                                          color: "#22d3ee" },
+    { id: "pdr",       label: "Preliminary Design",   labelEn: "Preliminary Design",     months: Math.round(8 + complexity * 1.2),           color: "#34d399" },
+    { id: "cdr",       label: "Detail Design & Build", labelEn: "Detail Design & Build", months: Math.round(10 + complexity * 1.8),          color: "#fb923c" },
+    { id: "test",      label: "Integration & Test",   labelEn: "Integration & Test",     months: Math.round(6 + complexity * 1.0),           color: "#a78bfa" },
+    { id: "campaign",  label: "Launch Campaign",      labelEn: "Launch Campaign",        months: 4,                                          color: "#fbbf24" },
   ];
 
   const totalMonths = phases.reduce((s, p) => s + p.months, 0);
 
-  // Budget (M USD) — capped at ≈$67M (≈100億円 at 150¥/$) for private small rover
+  // Budget (M USD), kept within the target envelope for a private small rover.
   const hardwareCost = 3 + mounted.reduce((s, m) => s + m.costM, 0);  // $3M base chassis
   const testingCost = Math.round(hardwareCost * 0.22);                 // 22% — lunar qual is expensive
   const opsCost = Math.round((config.durationDays / 14) * 0.4 + 2);   // ~$0.4M/lunar-day + $2M base
@@ -87,7 +87,7 @@ function addMonths(base: Date, n: number): Date {
 }
 
 function fmtDate(d: Date): string {
-  return `${d.getFullYear()}年${d.getMonth() + 1}月`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function fmtDateShort(d: Date): string {
@@ -128,16 +128,16 @@ export function MissionTimeline({
       {/* Header */}
       <div className="flex items-center gap-3">
         <span className="font-mono text-[10px] text-primary tracking-[0.3em]">MISSION FEASIBILITY</span>
-        <span className="font-mono text-[10px] text-muted-foreground">開発〜打ち上げ可能性試算</span>
+        <span className="font-mono text-[10px] text-muted-foreground">Development and launch readiness estimate</span>
         <span className="flex-1 h-px bg-border" />
         <span className="font-mono text-[10px] text-muted-foreground">
-          試算基準日: {fmtDate(TODAY)}
+          Baseline date: {fmtDate(TODAY)}
         </span>
       </div>
 
       {/* Gantt timeline */}
       <div className="bg-card border border-border rounded-lg p-4 flex flex-col gap-3">
-        <p className="font-mono text-[10px] tracking-[0.2em] uppercase text-primary">Development Timeline · 開発スケジュール</p>
+        <p className="font-mono text-[10px] tracking-[0.2em] uppercase text-primary">Development Timeline</p>
         <div className="flex flex-col gap-2">
           {tl.phases.map((ph) => {
             const widthPct = (ph.months / totalBar) * 100;
@@ -172,23 +172,23 @@ export function MissionTimeline({
         <div className="border-t border-border/50 pt-3 flex flex-wrap items-center gap-4">
           <div className="flex items-center gap-1.5">
             <Clock className="w-3.5 h-3.5 text-primary" />
-            <span className="text-[11px] text-muted-foreground">総期間</span>
-            <span className="font-mono text-sm text-primary font-semibold">{tl.totalMonths}ヶ月</span>
-            <span className="font-mono text-[10px] text-muted-foreground">（約 {(tl.totalMonths / 12).toFixed(1)} 年）</span>
+            <span className="text-[11px] text-muted-foreground">Total duration</span>
+            <span className="font-mono text-sm text-primary font-semibold">{tl.totalMonths} months</span>
+            <span className="font-mono text-[10px] text-muted-foreground">about {(tl.totalMonths / 12).toFixed(1)} years</span>
           </div>
           <div className="flex items-center gap-1.5">
             <Calendar className="w-3.5 h-3.5 text-cyan-400" />
-            <span className="text-[11px] text-muted-foreground">打ち上げ準備完了</span>
+            <span className="text-[11px] text-muted-foreground">Launch ready</span>
             <span className="font-mono text-sm text-cyan-400 font-semibold">{fmtDate(tl.readyDate)}</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-[11px] text-muted-foreground">ローバー総質量</span>
+            <span className="text-[11px] text-muted-foreground">Rover mass</span>
             <span className={`font-mono text-sm font-semibold ${tl.overMassLimit ? "text-red-400" : tl.roverMassKg > MAX_ROVER_KG * 0.9 ? "text-orange-400" : "text-emerald-400"}`}>
               {tl.roverMassKg.toFixed(1)} / {MAX_ROVER_KG} kg
             </span>
             {tl.overMassLimit && (
               <span className="font-mono text-[9px] text-red-400 border border-red-400/40 rounded px-1 py-0.5 bg-red-400/10">
-                ⚠ 超過
+                OVER
               </span>
             )}
           </div>
@@ -199,8 +199,8 @@ export function MissionTimeline({
           <div className="flex items-start gap-2 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">
             <AlertTriangle className="w-3.5 h-3.5 text-red-400 mt-0.5 flex-shrink-0" />
             <p className="text-[11px] text-red-300">
-              ローバー総質量 <strong>{tl.roverMassKg.toFixed(1)} kg</strong> が目標上限 <strong>{MAX_ROVER_KG} kg</strong> を超えています。
-              モジュールを外すか、軽量モジュールに変更してください。
+              Rover mass <strong>{tl.roverMassKg.toFixed(1)} kg</strong> exceeds the target limit of <strong>{MAX_ROVER_KG} kg</strong>.
+              Remove modules or switch to lighter payload options.
             </p>
           </div>
         )}
@@ -208,14 +208,14 @@ export function MissionTimeline({
 
       {/* Budget breakdown */}
       <div className="bg-card border border-border rounded-lg p-4 flex flex-col gap-3">
-        <p className="font-mono text-[10px] tracking-[0.2em] uppercase text-primary">Budget Estimate · 概算予算</p>
+        <p className="font-mono text-[10px] tracking-[0.2em] uppercase text-primary">Budget Estimate</p>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {[
-            { label: "ハードウェア",    value: tl.budget.hardwareCost,  color: "#f97316" },
-            { label: "試験・検証",      value: tl.budget.testingCost,   color: "#a78bfa" },
-            { label: "ミッション運用",  value: tl.budget.opsCost,       color: "#22d3ee" },
-            { label: "プログラム管理",  value: tl.budget.programCost,   color: "#34d399" },
-            { label: "コンティンジェンシー", value: tl.budget.contingency, color: "#fbbf24" },
+            { label: "Hardware", value: tl.budget.hardwareCost, color: "#f97316" },
+            { label: "Test & Verification", value: tl.budget.testingCost, color: "#a78bfa" },
+            { label: "Mission Ops", value: tl.budget.opsCost, color: "#22d3ee" },
+            { label: "Program Management", value: tl.budget.programCost, color: "#34d399" },
+            { label: "Contingency", value: tl.budget.contingency, color: "#fbbf24" },
           ].map((item) => (
             <div key={item.label} className="bg-muted/10 rounded border border-border p-2.5 flex flex-col gap-0.5">
               <p className="text-[10px] text-muted-foreground">{item.label}</p>
@@ -229,7 +229,7 @@ export function MissionTimeline({
             <p className="font-mono text-base font-bold text-primary">
               $ {tl.budget.totalBudget}M
             </p>
-            <p className="font-mono text-[9px] text-muted-foreground">≈ ¥{(tl.budget.totalBudget * 150).toLocaleString()}億</p>
+            <p className="font-mono text-[9px] text-muted-foreground">approx. ${tl.budget.totalBudget}M total</p>
           </div>
         </div>
       </div>
@@ -238,30 +238,30 @@ export function MissionTimeline({
       <div className="bg-card border border-border rounded-lg p-4 flex flex-col gap-3">
         <div className="flex items-center gap-3">
           <img src={`${BASE_URL}/nasa-logo.png`} alt="NASA" className="w-6 h-6 rounded-full object-cover flex-shrink-0" />
-          <p className="font-mono text-[10px] tracking-[0.2em] uppercase text-primary">NASA CLPS Launch Window · 打ち上げ機会</p>
+          <p className="font-mono text-[10px] tracking-[0.2em] uppercase text-primary">NASA CLPS Launch Window</p>
         </div>
 
         {tl.bestLander ? (
           <div className="border border-emerald-500/40 rounded-lg p-3 bg-emerald-500/5 flex flex-col gap-1.5">
             <div className="flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-              <p className="text-sm font-semibold text-emerald-300">打ち上げ可能ウィンドウが存在します</p>
+              <p className="text-sm font-semibold text-emerald-300">A compatible launch window is available</p>
             </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
               <div>
-                <p className="font-mono text-[9px] text-muted-foreground">最早打ち上げ機会</p>
+                <p className="font-mono text-[9px] text-muted-foreground">Earliest launch</p>
                 <p className="font-mono text-base text-emerald-400 font-bold">{fmtDate(tl.bestLander.targetDate)}</p>
               </div>
               <div>
-                <p className="font-mono text-[9px] text-muted-foreground">ランダー</p>
+                <p className="font-mono text-[9px] text-muted-foreground">Lander</p>
                 <p className="font-mono text-sm text-foreground">{tl.bestLander.provider} · {tl.bestLander.name}</p>
               </div>
               <div>
-                <p className="font-mono text-[9px] text-muted-foreground">ペイロード許容</p>
+                <p className="font-mono text-[9px] text-muted-foreground">Payload capacity</p>
                 <p className="font-mono text-sm text-cyan-400">{tl.bestLander.payloadKg} kg</p>
               </div>
               <div>
-                <p className="font-mono text-[9px] text-muted-foreground">備考</p>
+                <p className="font-mono text-[9px] text-muted-foreground">Notes</p>
                 <p className="text-[10px] text-muted-foreground">{tl.bestLander.notes}</p>
               </div>
             </div>
@@ -270,15 +270,15 @@ export function MissionTimeline({
           <div className="border border-orange-500/40 rounded-lg p-3 bg-orange-500/5 flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 text-orange-400 flex-shrink-0" />
             <p className="text-[11px] text-orange-300">
-              現在の開発期間（{tl.totalMonths}ヶ月）では既知の CLPS 打ち上げウィンドウに間に合いません。
-              ローバー質量（{tl.roverMassKg} kg）または開発スケジュールの見直しを検討してください。
+              The current development duration ({tl.totalMonths} months) misses the known CLPS launch windows.
+              Review rover mass ({tl.roverMassKg} kg) or compress the development schedule.
             </p>
           </div>
         )}
 
         {/* All landers table */}
         <div className="flex flex-col gap-1 mt-1">
-          <p className="font-mono text-[9px] text-muted-foreground/60 tracking-widest uppercase">CLPS スケジュール一覧</p>
+          <p className="font-mono text-[9px] text-muted-foreground/60 tracking-widest uppercase">CLPS Schedule</p>
           <div className="overflow-x-auto">
             <table className="w-full text-[10px]">
               <thead>
@@ -331,7 +331,7 @@ export function MissionTimeline({
             </table>
           </div>
           <p className="font-mono text-[8px] text-muted-foreground/40 mt-1">
-            ※ 灰色行 = ローバー完成前 or ペイロード不足 · データは2026年5月時点の公開情報に基づく概算
+            Dim rows indicate launch before rover readiness or insufficient payload capacity. Estimates are based on public information available in May 2026.
           </p>
         </div>
       </div>

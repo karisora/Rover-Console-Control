@@ -128,9 +128,9 @@ export function DriveControls() {
           <div>
             <p className="font-mono text-[10px] tracking-[0.25em] uppercase text-primary">Solar Panel</p>
             <p className="font-mono text-[9px] text-muted-foreground">
-              {solarState === "deployed" ? "展開中 · DEPLOYED"
-               : solarState === "folded"  ? "格納済 · FOLDED"
-               :                            "状態不明 · UNKNOWN"}
+              {solarState === "deployed" ? "DEPLOYED"
+               : solarState === "folded"  ? "FOLDED"
+               :                            "UNKNOWN"}
             </p>
           </div>
         </div>
@@ -157,7 +157,7 @@ export function DriveControls() {
           ].join(" ")}
         >
           <span className="text-base leading-none">🔲</span>
-          格納 · FOLD
+          FOLD
           <span className="font-mono text-[8px] text-slate-500 ml-1">0x405,0</span>
         </button>
 
@@ -174,7 +174,7 @@ export function DriveControls() {
           ].join(" ")}
         >
           <Sun className="w-3.5 h-3.5" />
-          展開 · DEPLOY
+          DEPLOY
           <span className="font-mono text-[8px] text-yellow-600/60 ml-1">0x404,0</span>
         </button>
       </div>

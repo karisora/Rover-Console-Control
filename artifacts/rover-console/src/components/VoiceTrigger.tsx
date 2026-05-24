@@ -8,7 +8,7 @@ import { useTelemetry } from "./TelemetryContext";
 type SR = any;
 
 const LUMOS_GRAMMAR =
-  "#JSGF V1.0; grammar spell; public <spell> = lumos | lumo's | ルーモス | ルモス ;";
+  "#JSGF V1.0; grammar spell; public <spell> = lumos | lumo's ;";
 const LUMOS_ROMANIZED_FORMS = [
   "lumos",
   "lumo",
@@ -30,8 +30,6 @@ const LUMOS_ROMANIZED_FORMS = [
   "rumas",
   "ruma",
 ];
-const LUMOS_KANA_PATTERN =
-  /(ルー?モー?ス?|るー?もー?す?|リュー?モー?ス?|りゅー?もー?す?)/;
 const FATAL_SPEECH_ERRORS = new Set([
   "audio-capture",
   "language-not-supported",
@@ -58,10 +56,7 @@ function normalizeSpeechText(text: string) {
 
 function isLumosTranscript(text: string) {
   const normalized = normalizeSpeechText(text);
-  return (
-    LUMOS_ROMANIZED_FORMS.some((form) => normalized.includes(form)) ||
-    LUMOS_KANA_PATTERN.test(normalized)
-  );
+  return LUMOS_ROMANIZED_FORMS.some((form) => normalized.includes(form));
 }
 
 function collectTranscripts(event: any) {
@@ -206,7 +201,7 @@ export function VoiceTrigger() {
         <div className="flex items-center gap-2">
           <Zap className="w-4 h-4 text-accent" />
           <span className="font-mono text-[10px] tracking-[0.3em] uppercase text-muted-foreground">
-            Voice Spell · "Lumos / ルーモス"
+            Voice Spell · "Lumos"
           </span>
         </div>
         {!supported && (
@@ -244,7 +239,7 @@ export function VoiceTrigger() {
             <span className="truncate text-foreground/80">
               {transcript || (
                 <span className="text-muted-foreground italic">
-                  say "lumos" / "ルーモス" to fire 0x450,0…
+                  say "lumos" to fire 0x450,0...
                 </span>
               )}
             </span>

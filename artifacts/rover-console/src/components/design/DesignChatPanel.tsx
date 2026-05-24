@@ -38,7 +38,7 @@ export function DesignChatPanel({ config }: { config: MissionConfig }) {
       setMessages([...nextMessages, { role: "assistant", content: result.message }]);
     } catch (error) {
       const message = error instanceof Error ? error.message : "AI request failed";
-      setMessages([...nextMessages, { role: "assistant", content: `AI 接続エラー: ${message}` }]);
+      setMessages([...nextMessages, { role: "assistant", content: `AI connection error: ${message}` }]);
     } finally {
       setSending(false);
     }
@@ -49,7 +49,7 @@ export function DesignChatPanel({ config }: { config: MissionConfig }) {
       <div className="px-4 py-3 border-b border-border flex items-center justify-between gap-3">
         <div>
           <p className="font-mono text-[10px] tracking-[0.3em] uppercase text-primary">Rover Design Chat</p>
-          <p className="text-[10px] text-muted-foreground mt-0.5">AI 設計相談</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">AI design consultation</p>
         </div>
         <Bot className="w-4 h-4 text-primary" />
       </div>
@@ -131,7 +131,7 @@ export function DesignChatPanel({ config }: { config: MissionConfig }) {
             }
           }}
           rows={2}
-          placeholder="例: 砂地でスタックしにくい構成にしたい"
+          placeholder="Example: I want a configuration that is less likely to get stuck in loose regolith"
           className="min-h-11 max-h-28 resize-y rounded border border-border bg-muted/20 px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary"
         />
         <Button type="submit" disabled={!canSend} className="h-11 w-11 p-0" aria-label="Send design chat">

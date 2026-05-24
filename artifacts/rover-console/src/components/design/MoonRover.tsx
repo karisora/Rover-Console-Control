@@ -202,7 +202,7 @@ function RoverIsometric({ config }: { config: MissionConfig }) {
 
       {/* Legend */}
       <text x="12" y="310" fontSize="8" fill="#47556960" fontFamily="monospace">
-        アイソメトリック 3D ビュー · モジュール配置に基づき自動生成
+        ISOMETRIC 3D VIEW - GENERATED FROM MODULE PLACEMENT
       </text>
     </svg>
   );
@@ -528,8 +528,8 @@ function drawLunarScene(
 
   // ── Overlay: terrain label ────────────────────────────────────────────────────
   const terrainLabels: Record<string, string> = {
-    flat: "MARE PLAIN — 平坦地形", rocky: "HIGHLAND ROCK — 岩礫地形",
-    sandy: "REGOLITH DUNE — 砂状地形", steep: "CRATER RIDGE — 急傾斜地形",
+    flat: "MARE PLAIN", rocky: "HIGHLAND ROCK",
+    sandy: "REGOLITH DUNE", steep: "CRATER RIDGE",
   };
   ctx.fillStyle = "rgba(0,0,0,0.45)";
   ctx.beginPath(); ctx.roundRect(12, H - 30, 230, 20, 4); ctx.fill();
@@ -575,7 +575,7 @@ export function MoonRover({ config }: { config: MissionConfig }) {
         <div>
           <p className="font-mono text-[10px] tracking-[0.3em] uppercase text-primary">Rover Visualizer</p>
           <p className="text-[10px] text-muted-foreground mt-0.5">
-            {view === "iso" ? "アイソメトリック 3D — モジュール配置を立体で確認" : "月面配置イメージ — 地形上の配置シミュレーション"}
+            {view === "iso" ? "Isometric 3D view of the module layout" : "Lunar scene preview for the selected terrain"}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -584,7 +584,7 @@ export function MoonRover({ config }: { config: MissionConfig }) {
               onClick={exportPNG}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-primary/40 bg-primary/10 text-primary font-mono text-[10px] tracking-wider hover:bg-primary/20 transition-colors"
             >
-              <Download className="w-3 h-3" /> PNG 書き出し
+              <Download className="w-3 h-3" /> EXPORT PNG
             </button>
           )}
           <div className="flex rounded border border-border overflow-hidden">
@@ -592,13 +592,13 @@ export function MoonRover({ config }: { config: MissionConfig }) {
               onClick={() => setView("iso")}
               className={`flex items-center gap-1.5 px-3 py-1.5 font-mono text-[10px] transition-colors ${view === "iso" ? "bg-primary/20 text-primary border-r border-primary/30" : "text-muted-foreground hover:text-foreground hover:bg-muted/30 border-r border-border"}`}
             >
-              <Box className="w-3 h-3" /> 3D ビュー
+              <Box className="w-3 h-3" /> 3D View
             </button>
             <button
               onClick={() => setView("scene")}
               className={`flex items-center gap-1.5 px-3 py-1.5 font-mono text-[10px] transition-colors ${view === "scene" ? "bg-primary/20 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-muted/30"}`}
             >
-              <Mountain className="w-3 h-3" /> 月面配置
+              <Mountain className="w-3 h-3" /> Lunar Scene
             </button>
           </div>
         </div>

@@ -12,19 +12,19 @@ export function TabNav({ active, onChange }: TabNavProps) {
     {
       id: "operation",
       label: "OPERATION",
-      labelJa: "実機操作",
+      labelJa: "Live rover control",
       icon: <Radio className="w-3.5 h-3.5" />,
     },
     {
       id: "sim-to-real",
       label: "SIM-TO-REAL",
-      labelJa: "シミュレーション",
+      labelJa: "Simulation bridge",
       icon: <Route className="w-3.5 h-3.5" />,
     },
     {
       id: "design",
       label: "DESIGN LAB",
-      labelJa: "設計・シミュレーション",
+      labelJa: "Design and simulation",
       icon: <FlaskConical className="w-3.5 h-3.5" />,
     },
   ];
