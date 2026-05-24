@@ -3,6 +3,7 @@ import { RoverParamsProvider } from "@/components/design/RoverParamsContext";
 import { StructurePanel } from "@/components/design/StructurePanel";
 import { MissionConfigPanel } from "@/components/design/MissionConfigPanel";
 import { SimulationFlow } from "@/components/design/SimulationFlow";
+import { DesignChatPanel } from "@/components/design/DesignChatPanel";
 import { MoonRover } from "@/components/design/MoonRover";
 import { DEFAULT_MISSION, type MissionConfig } from "@/components/design/missionTypes";
 
@@ -39,7 +40,12 @@ export default function DesignLab() {
         </section>
 
         <section>
-          <SectionLabel num="04" title="Rover Visualizer · 3D ビュー &amp; 月面配置" />
+          <SectionLabel num="04" title="Design AI Chat · 設計相談" />
+          <DesignChatPanel config={mission} />
+        </section>
+
+        <section>
+          <SectionLabel num="05" title="Rover Visualizer · 3D ビュー &amp; 月面配置" />
           <MoonRover config={mission} />
         </section>
 

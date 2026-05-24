@@ -26,6 +26,9 @@ const BRIDGE_HOST = process.env.BRIDGE_HOST || "127.0.0.1";
 const HEARTBEAT_ID = process.env.HEARTBEAT_ID || "0x410";
 const HEARTBEAT_VALUE = Number(process.env.HEARTBEAT_VALUE || 0);
 const HEARTBEAT_INTERVAL_MS = Number(process.env.HEARTBEAT_INTERVAL_MS || 1000);
+const AZURE_OPENAI_ENDPOINT = (process.env.AZURE_OPENAI_ENDPOINT || "https://lumos-rover-01.openai.azure.com/openai/v1").replace(/\/+$/, "");
+const AZURE_OPENAI_DEPLOYMENT = process.env.AZURE_OPENAI_DEPLOYMENT || "gpt-4.1-mini";
+const AZURE_OPENAI_API_KEY = process.env.AZURE_OPENAI_API_KEY || process.env.OPENAI_API_KEY || "";
 // Bumped whenever the bridge wire protocol changes. The launcher uses this
 // to detect a stale older bridge process and kill it before reusing.
 const BRIDGE_VERSION = "2026.05.22-sim-to-real";
@@ -245,7 +248,7 @@ function packetsFor(action, speed) {
 function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Azure-OpenAI-Key,X-Azure-OpenAI-Endpoint,X-Azure-OpenAI-Deployment");
   res.setHeader("Access-Control-Max-Age", "86400");
   // Local Network Access (Chrome): allow private/loopback access from secure origins.
   res.setHeader("Access-Control-Allow-Private-Network", "true");
@@ -293,6 +296,63 @@ function readJson(req) {
     });
     req.on("error", reject);
   });
+}
+
+function extractJsonObject(text) {
+  const cleaned = String(text || "")
+    .trim()
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/\s*```$/i, "");
+  const start = cleaned.indexOf("{");
+  const end = cleaned.lastIndexOf("}");
+  if (start < 0 || end < start) throw new Error("model did not return JSON");
+  return JSON.parse(cleaned.slice(start, end + 1));
+}
+
+function headerValue(req, name) {
+  const value = req.headers[name.toLowerCase()];
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function modelConfigFromRequest(req) {
+  return {
+    endpoint: (headerValue(req, "X-Azure-OpenAI-Endpoint") || AZURE_OPENAI_ENDPOINT).replace(/\/+$/, ""),
+    deployment: headerValue(req, "X-Azure-OpenAI-Deployment") || AZURE_OPENAI_DEPLOYMENT,
+    apiKey: headerValue(req, "X-Azure-OpenAI-Key") || AZURE_OPENAI_API_KEY,
+  };
+}
+
+async function callRoverModel(req, messages, temperature = 0.25) {
+  const { endpoint, deployment, apiKey } = modelConfigFromRequest(req);
+  if (!apiKey) throw new Error("Azure OpenAI API key is not configured");
+  const response = await fetch(`${endpoint}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+      "api-key": apiKey,
+    },
+    body: JSON.stringify({
+      model: deployment,
+      messages,
+      temperature,
+    }),
+    signal: AbortSignal.timeout(45000),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data?.error?.message || `model request failed with ${response.status}`);
+  }
+  const content = data?.choices?.[0]?.message?.content;
+  if (!content) throw new Error("model returned an empty response");
+  return content;
+}
+
+function sendModelError(res, error) {
+  const message = error instanceof Error ? error.message : "model request failed";
+  const status = message.includes("not configured") ? 503 : 502;
+  res.writeHead(status, { "Content-Type": "application/json" });
+  res.end(JSON.stringify({ ok: false, error: message }));
 }
 
 const server = http.createServer(async (req, res) => {
@@ -345,6 +405,67 @@ const server = http.createServer(async (req, res) => {
         heartbeat: { id: HEARTBEAT_ID, value: HEARTBEAT_VALUE, intervalMs: HEARTBEAT_INTERVAL_MS },
         stats,
       }));
+      return;
+    }
+    if (req.method === "POST" && (path === "/api/design/analysis" || path === "/design/analysis")) {
+      try {
+        const body = await readJson(req);
+        const schema = {
+          recommendations: [
+            { id: "4wheel | 6wheel | crawler | legged", score: 0, reasons: ["日本語で短く、最大4件"], warnings: ["日本語で短く、必要な場合のみ"] },
+          ],
+          narrative: "日本語で2文以内の総評",
+        };
+        const content = await callRoverModel(req, [
+          {
+            role: "system",
+            content: [
+              "あなたは惑星・月面探査ローバーの設計レビューに特化したAIです。",
+              "構造パラメーター、ミッション条件、搭載モジュール、ローカル物理スコアを使い、設計候補を現実的に評価してください。",
+              "出力はJSONのみ。markdownや説明文をJSONの外に出さないでください。",
+            ].join("\n"),
+          },
+          {
+            role: "user",
+            content: [
+              "以下の設計状態を評価して、JSONスキーマに沿って推薦候補を返してください。",
+              `JSON schema: ${JSON.stringify(schema)}`,
+              `Design state: ${JSON.stringify(body)}`,
+            ].join("\n\n"),
+          },
+        ]);
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: true, source: "azure-openai", ...extractJsonObject(content) }));
+      } catch (e) {
+        sendModelError(res, e);
+      }
+      return;
+    }
+    if (req.method === "POST" && (path === "/api/design/chat" || path === "/design/chat")) {
+      try {
+        const body = await readJson(req);
+        const rawMessages = Array.isArray(body.messages) ? body.messages : [];
+        const messages = rawMessages
+          .filter((message) => message && (message.role === "user" || message.role === "assistant") && typeof message.content === "string")
+          .slice(-10)
+          .map((message) => ({ role: message.role, content: message.content.slice(0, 4000) }));
+        const reply = await callRoverModel(req, [
+          {
+            role: "system",
+            content: [
+              "あなたは惑星・月面探査ローバー設計LABの相談AIです。",
+              "現在の設計条件を前提に、実装可能で検証しやすい助言を日本語で返してください。",
+              "回答は簡潔に。必要なら推奨変更、理由、注意点を分けてください。",
+              `Current design context: ${JSON.stringify({ mission: body.config, structure: body.params })}`,
+            ].join("\n"),
+          },
+          ...messages,
+        ], 0.35);
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: true, message: reply }));
+      } catch (e) {
+        sendModelError(res, e);
+      }
       return;
     }
     if (req.method === "POST" && (path === "/api/rover/command" || path === "/rover/command")) {

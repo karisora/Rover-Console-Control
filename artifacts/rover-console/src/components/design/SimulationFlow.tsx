@@ -5,6 +5,7 @@ import {
   ALL_SLOTS, MODULE_CATALOG, type MissionConfig, type ModuleDef,
 } from "./missionTypes";
 import { MissionTimeline } from "./MissionTimeline";
+import { requestDesignAnalysis, type ModelRecommendation } from "./designAiClient";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const rlVideoSrc   = `${BASE}/sim-rl.webm`;
@@ -12,6 +13,7 @@ const dtVideoSrc   = `${BASE}/sim-dt2.mp4`;
 const gazoVideoSrc = `${BASE}/sim-dt.mp4`;
 
 type PhaseState = "idle" | "running" | "done";
+type AiStatus = "idle" | "loading" | "model" | "fallback" | "error";
 
 interface RoverType {
   id: string;
@@ -255,6 +257,44 @@ function ResultCard({ rover, rank }: { rover: RoverType; rank: number }) {
   );
 }
 
+function clampScore(value: number) {
+  if (!Number.isFinite(value)) return 50;
+  return Math.max(5, Math.min(100, Math.round(value)));
+}
+
+function mergeModelRecommendations(
+  fallback: RoverType[],
+  modelRecommendations: ModelRecommendation[] | undefined,
+): RoverType[] {
+  if (!modelRecommendations?.length) return fallback;
+
+  const fallbackById = new Map(fallback.map((item) => [item.id, item]));
+  const used = new Set<string>();
+  const merged: RoverType[] = [];
+
+  for (const recommendation of modelRecommendations) {
+    const base = fallbackById.get(recommendation.id);
+    if (!base || used.has(recommendation.id)) continue;
+    used.add(recommendation.id);
+    merged.push({
+      ...base,
+      score: clampScore(recommendation.score),
+      reasons: Array.isArray(recommendation.reasons) && recommendation.reasons.length > 0
+        ? recommendation.reasons.slice(0, 4)
+        : base.reasons,
+      warnings: Array.isArray(recommendation.warnings)
+        ? recommendation.warnings.slice(0, 4)
+        : base.warnings,
+    });
+  }
+
+  for (const item of fallback) {
+    if (!used.has(item.id)) merged.push(item);
+  }
+
+  return merged.sort((a, b) => b.score - a.score);
+}
+
 // ── Main export ───────────────────────────────────────────────────────────────
 export function SimulationFlow({ config }: { config: MissionConfig }) {
   const { params } = useRoverParams();
@@ -263,6 +303,8 @@ export function SimulationFlow({ config }: { config: MissionConfig }) {
   const [running, setRunning] = useState(false);
   const [done,    setDone]    = useState(false);
   const [results, setResults] = useState<RoverType[]>([]);
+  const [aiStatus, setAiStatus] = useState<AiStatus>("idle");
+  const [aiNarrative, setAiNarrative] = useState("");
   const timerRef    = useRef<ReturnType<typeof setTimeout>  | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -274,7 +316,16 @@ export function SimulationFlow({ config }: { config: MissionConfig }) {
     setPhaseStates(["idle", "idle", "idle"]);
     setPhaseProgress([0, 0, 0]);
     setRunning(false); setDone(false); setResults([]);
+    setAiStatus("idle");
+    setAiNarrative("");
   };
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current)    clearTimeout(timerRef.current);
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, []);
 
   const startAnalysis = () => {
     reset();
@@ -299,7 +350,28 @@ export function SimulationFlow({ config }: { config: MissionConfig }) {
           setTimeout(() => runPhase(idx + 1), 300);
         } else {
           setRunning(false); setDone(true);
-          setResults(computeRecommendation(params, config));
+          const fallback = computeRecommendation(params, config);
+          setResults(fallback);
+          setAiStatus("loading");
+          void requestDesignAnalysis({
+            config,
+            params,
+            heuristicCandidates: fallback.map((item) => ({
+              id: item.id,
+              score: item.score,
+              reasons: item.reasons,
+              warnings: item.warnings,
+            })),
+          })
+            .then((response) => {
+              setResults(mergeModelRecommendations(fallback, response.recommendations));
+              setAiNarrative(response.narrative || "");
+              setAiStatus(response.source === "azure-openai" ? "model" : "fallback");
+            })
+            .catch((error) => {
+              setAiStatus("error");
+              setAiNarrative(error instanceof Error ? error.message : "AI model request failed");
+            });
         }
       }, durationMs);
     };
@@ -349,8 +421,16 @@ export function SimulationFlow({ config }: { config: MissionConfig }) {
           <div className="flex items-center gap-3">
             <span className="font-mono text-[10px] text-primary tracking-[0.3em]">ANALYSIS RESULT</span>
             <span className="font-mono text-[10px] text-muted-foreground">最適機体構成</span>
+            <span className="font-mono text-[9px] tracking-[0.2em] uppercase text-muted-foreground border border-border rounded px-1.5 py-0.5">
+              {aiStatus === "loading" ? "MODEL THINKING" : aiStatus === "model" ? "AZURE MODEL" : aiStatus === "error" ? "LOCAL FALLBACK" : "LOCAL SCORE"}
+            </span>
             <span className="flex-1 h-px bg-border" />
           </div>
+          {aiNarrative && (
+            <div className={`border rounded px-3 py-2 text-xs leading-relaxed ${aiStatus === "error" ? "border-orange-400/30 bg-orange-400/5 text-orange-300" : "border-primary/30 bg-primary/5 text-muted-foreground"}`}>
+              {aiNarrative}
+            </div>
+          )}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {results.map((r, i) => <ResultCard key={r.id} rover={r} rank={i} />)}
           </div>
