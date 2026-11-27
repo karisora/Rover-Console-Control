@@ -8,6 +8,7 @@ import { BridgeProvider } from "@/components/BridgeContext";
 import { NetworkRateProvider } from "@/components/NetworkRateContext";
 import { TabNav, type AppTab } from "@/components/TabNav";
 import { StatusHeader } from "@/components/StatusHeader";
+import { ShutdownScreen } from "@/components/ShutdownButton";
 import Home from "@/pages/Home";
 import DesignLab from "@/pages/DesignLab";
 import NotFound from "@/pages/not-found";
@@ -18,9 +19,14 @@ function AppShell() {
   const [tab, setTab] = useState<AppTab>(
     () => (window.location.hash === "#design" ? "design" : "operation")
   );
+  const [shutdownTarget, setShutdownTarget] = useState<string | null>(null);
+
+  // Unmount polling, the event stream, and drive controls before sending shutdown.
+  if (shutdownTarget) return <ShutdownScreen target={shutdownTarget} />;
+
   return (
     <div className="min-h-screen flex flex-col">
-      <StatusHeader />
+      <StatusHeader onShutdown={setShutdownTarget} />
       <TabNav active={tab} onChange={setTab} />
       {tab === "operation" ? <Home /> : <DesignLab />}
     </div>

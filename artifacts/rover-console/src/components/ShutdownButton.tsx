@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -14,48 +14,14 @@ import {
 import { Power } from "lucide-react";
 import { useBridge } from "./BridgeContext";
 
-export function ShutdownButton() {
+export function ShutdownButton({ onShutdown }: { onShutdown: (target: string) => void }) {
   const { servedByBridge, bridgeUrl } = useBridge();
-  const target = (bridgeUrl?.replace(/\/+$/, "") ?? "") + "/api/shutdown";
-  const [open, setOpen] = useState(false);
-  const [done, setDone] = useState(false);
 
   // Only meaningful when running inside the local bridge (.app or `node rover-bridge.mjs`).
   if (!servedByBridge) return null;
 
-  const handleShutdown = async () => {
-    try {
-      await fetch(target, { method: "POST" });
-    } catch {
-      // The server killed itself before responding — that's expected.
-    }
-    setDone(true);
-    setOpen(false);
-  };
-
-  if (done) {
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm">
-        <div className="text-center space-y-4 max-w-md px-6">
-          <Power className="w-12 h-12 mx-auto text-destructive" />
-          <div className="font-mono text-xs tracking-[0.25em] uppercase text-muted-foreground">
-            Bridge Stopped
-          </div>
-          <div className="text-base">
-            Rover Console has shut down.
-            <br />
-            You can close this browser tab.
-          </div>
-          <p className="text-[11px] text-muted-foreground leading-relaxed">
-            To start again, open <span className="font-mono">RoverConsole.app</span> from Finder.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <AlertDialog open={open} onOpenChange={setOpen}>
+    <AlertDialog>
       <AlertDialogTrigger asChild>
         <Button
           variant="ghost"
@@ -73,9 +39,7 @@ export function ShutdownButton() {
             Shut Down Rover Console?
           </AlertDialogTitle>
           <AlertDialogDescription className="text-xs leading-relaxed">
-            This will stop the local bridge that talks to the rover and quit the
-            Rover Console app. You'll need to re-open it from Finder to use the
-            console again.
+            This will stop communication with the rover and shut down the local bridge.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter className="gap-2">
@@ -83,7 +47,7 @@ export function ShutdownButton() {
             Cancel
           </AlertDialogCancel>
           <AlertDialogAction
-            onClick={handleShutdown}
+            onClick={() => onShutdown(`${bridgeUrl.replace(/\/+$/, "")}/api/shutdown`)}
             className="font-mono text-xs uppercase tracking-widest bg-destructive text-destructive-foreground hover:bg-destructive/90"
           >
             Shut Down
@@ -91,5 +55,49 @@ export function ShutdownButton() {
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+  );
+}
+
+export function ShutdownScreen({ target }: { target: string }) {
+  const [status, setStatus] = useState<"stopping" | "stopped" | "unconfirmed">("stopping");
+
+  useEffect(() => {
+    async function stopBridge() {
+      try {
+        const response = await fetch(target, { method: "POST" });
+        if (response.ok) {
+          setStatus("stopped");
+          if (window.matchMedia("(display-mode: standalone)").matches) window.close();
+          return;
+        }
+      } catch {
+        // Keep the console quiescent if the bridge is already unreachable.
+      }
+      setStatus("unconfirmed");
+    }
+
+    void stopBridge();
+  }, [target]);
+
+  const messages = {
+    stopping: "Stopping the bridge…",
+    stopped: "Bridge stopped",
+    unconfirmed: "Could not confirm bridge shutdown",
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="text-center space-y-4 max-w-md px-6" role="status">
+        <Power className="w-12 h-12 mx-auto text-destructive" />
+        <div className="font-mono text-xs tracking-[0.25em] uppercase text-muted-foreground">
+          {messages[status]}
+        </div>
+        {status !== "stopping" && (
+          <p className="text-sm text-muted-foreground">
+            Close this window, then open Rover Console from its app icon to start again.
+          </p>
+        )}
+      </div>
+    </div>
   );
 }

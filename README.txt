@@ -23,6 +23,21 @@ start.command は Terminal でブリッジを実行し、.app はバックグラ
 画面の SHUTDOWN ボタンでブリッジを停止できます。
 start.command から新しく起動した場合は、Terminal で Ctrl+C でも停止できます。
 
+Chrome のインストール済みアイコンから起動
+-----------------------------------------
+Chrome のアイコンが開く URL と同じポートを指定して、初回だけ起動設定を登録します。
+例として、アプリの URL が http://127.0.0.1:5051/ の場合は次のように実行します。
+登録には macOS の Command Line Tools が必要です。
+
+  ./tools/install-chrome-launcher.sh install 5051
+
+Mac のログイン中、Chrome で画面を開くとブリッジが起動します。
+SHUTDOWN 後はウィンドウを閉じ、同じ Chrome アイコンから起動できます。
+このフォルダを移動した場合は、移動先で登録し直してください。
+登録を解除する場合は次のように実行します。
+
+  ./tools/install-chrome-launcher.sh remove 5051
+
 ログ
 ----
 .app から起動した場合のログは ~/Library/Logs/LumOS1-Console/bridge.log です。

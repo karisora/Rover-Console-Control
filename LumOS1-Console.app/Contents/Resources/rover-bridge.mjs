@@ -23,6 +23,10 @@ const ROVER_HOST = process.env.ROVER_HOST || "192.168.4.1";
 const ROVER_PORT = Number(process.env.ROVER_PORT || 5000);
 const BRIDGE_PORT = Number(process.env.BRIDGE_PORT || 5050);
 const BRIDGE_HOST = process.env.BRIDGE_HOST || "127.0.0.1";
+const inheritedListener = process.env.BRIDGE_LISTEN_FD;
+const listenOptions = inheritedListener === undefined
+  ? { host: BRIDGE_HOST, port: BRIDGE_PORT }
+  : { fd: Number(inheritedListener) };
 const HEARTBEAT_ID = process.env.HEARTBEAT_ID || "0x410";
 const HEARTBEAT_VALUE = Number(process.env.HEARTBEAT_VALUE || 0);
 const HEARTBEAT_INTERVAL_MS = Number(process.env.HEARTBEAT_INTERVAL_MS || 1000);
@@ -295,12 +299,33 @@ function readJson(req) {
   });
 }
 
+// A launchd listener can wake for a stale poll after SHUTDOWN. Only opening
+// the console in a top-level browser window may enable rover communication.
+let waitingForConsole = inheritedListener !== undefined;
+let startupTimeout;
+
 const server = http.createServer(async (req, res) => {
   cors(res);
   if (req.method === "OPTIONS") { res.writeHead(204); res.end(); return; }
   const url = new URL(req.url, "http://x");
   const path = url.pathname.replace(/\/+$/, "") || "/";
   try {
+    if (waitingForConsole) {
+      const opensConsole = req.method === "GET" && path === "/" &&
+        req.headers.host === `${BRIDGE_HOST}:${BRIDGE_PORT}` &&
+        req.headers["sec-fetch-mode"] === "navigate" &&
+        req.headers["sec-fetch-dest"] === "document" &&
+        ["none", "same-origin"].includes(req.headers["sec-fetch-site"]);
+      if (!opensConsole) {
+        res.writeHead(503, { "Content-Type": "text/plain; charset=utf-8" });
+        res.end("Open the Rover Console app to start the bridge.");
+        return;
+      }
+      waitingForConsole = false;
+      clearTimeout(startupTimeout);
+      startHeartbeat();
+    }
+
     if (req.method === "GET" && (path === "/api/rover/status" || path === "/rover/status")) {
       const p = await probe();
       res.writeHead(200, { "Content-Type": "application/json" });
@@ -376,6 +401,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
     if (req.method === "POST" && (path === "/api/shutdown" || path === "/shutdown")) {
+      clearInterval(heartbeatTimer);
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ ok: true, message: "shutting down" }));
       console.log("[bridge] shutdown requested via HTTP — exiting");
@@ -413,8 +439,12 @@ function startHeartbeat() {
   if (typeof heartbeatTimer.unref === "function") heartbeatTimer.unref();
 }
 
-server.listen(BRIDGE_PORT, BRIDGE_HOST, () => {
-  startHeartbeat();
+server.listen(listenOptions, () => {
+  if (waitingForConsole) {
+    startupTimeout = setTimeout(() => process.exit(0), 5000);
+  } else {
+    startHeartbeat();
+  }
   console.log("==========================================================");
   console.log(`  ROVER BRIDGE  v${BRIDGE_VERSION}`);
   console.log(`  Listening on   http://${BRIDGE_HOST}:${BRIDGE_PORT}`);

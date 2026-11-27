@@ -31,7 +31,7 @@ function useJstClock() {
   };
 }
 
-export function StatusHeader() {
+export function StatusHeader({ onShutdown }: { onShutdown: (target: string) => void }) {
   const { effectiveMode } = useBridge();
   const { day, time } = useJstClock();
   const net = useNetworkRate();
@@ -165,7 +165,7 @@ export function StatusHeader() {
           </Telemetry>
 
           <BridgeSettings />
-          <ShutdownButton />
+          <ShutdownButton onShutdown={onShutdown} />
         </div>
       </div>
       {effectiveMode === "cloud" && (

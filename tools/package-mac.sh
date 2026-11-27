@@ -91,6 +91,9 @@ install -m 755 "$TEMPLATE_DIR/start.command" "$PKG_DIR/start.command"
 cp "$TEMPLATE_DIR/README.txt" "$PKG_DIR/README.txt"
 cp "$SCRIPT_DIR/rover-bridge.mjs" "$APP_BUNDLE/Contents/Resources/rover-bridge.mjs"
 cp -R "$ROOT_DIR/artifacts/rover-console/dist/public" "$APP_BUNDLE/Contents/Resources/public"
+mkdir -p "$PKG_DIR/tools/lumos1-mac"
+install -m 755 "$SCRIPT_DIR/install-chrome-launcher.sh" "$PKG_DIR/tools/install-chrome-launcher.sh"
+cp "$TEMPLATE_DIR/activate-bridge.c" "$PKG_DIR/tools/lumos1-mac/activate-bridge.c"
 
 echo "[3/5] .app / start.command / README.txt を生成完了"
 
