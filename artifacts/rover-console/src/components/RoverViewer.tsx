@@ -22,6 +22,7 @@ class WebGLErrorBoundary extends Component<{ children: ReactNode }, { failed: bo
 }
 
 const MODEL_URL = `${import.meta.env.BASE_URL}lumos1.glb`;
+const ENVIRONMENT_URL = `${import.meta.env.BASE_URL}empty_warehouse_01_1k.hdr`;
 
 const WHEEL_NODES: Record<"FL" | "FR" | "RL" | "RR", string[]> = {
   FL: ["Wheel_FL", "Wheel\uFF3FFL"],
@@ -63,7 +64,7 @@ function findNode(root: THREE.Object3D, names: string[]): THREE.Object3D | null 
 }
 
 function RoverModel() {
-  const gltf = useGLTF(MODEL_URL);
+  const gltf = useGLTF(MODEL_URL, false, false);
   const { intent } = useTelemetry();
   const intentRef = useRef(intent);
   intentRef.current = intent;
@@ -137,7 +138,7 @@ function RoverModel() {
   return <primitive object={gltf.scene} scale={0.01} position={[0, 0, 0]} />;
 }
 
-useGLTF.preload(MODEL_URL);
+useGLTF.preload(MODEL_URL, false, false);
 
 function LoadingFallback() {
   return (
@@ -178,7 +179,7 @@ export function RoverViewer() {
             blur={2.4}
             far={4}
           />
-          <Environment preset="warehouse" />
+          <Environment files={ENVIRONMENT_URL} />
         </Suspense>
         <gridHelper args={[20, 40, "#1e293b", "#0f172a"]} position={[0, 0.001, 0]} />
         <OrbitControls

@@ -10,6 +10,7 @@ start.command は Terminal でブリッジを実行し、.app はバックグラ
 起動すると既定のブラウザでコンソールを開きます。通常は http://127.0.0.1:5050/
 です。5050 が使用中の場合は 5051～5055 の空きポートが選ばれます。
 画面とブリッジは同じ URL で動作するため、通常は BRIDGE URL の設定は不要です。
+3D モデルと反射照明データは同梱されており、インターネット接続なしで表示できます。
 
 実機を操作する場合は、Mac をローバーの Wi-Fi AP (LumOS1-Pico2W) に接続してから
 起動してください。実機への通信を避けて画面を確認する場合は、次のコマンドで
@@ -34,3 +35,8 @@ React/TypeScript のソースを含むリポジトリのルートで実行して
   ./tools/package-mac.sh
 
 出力先は dist-mac/lumos1-console-mac/ です。
+
+3D 表示の反射照明
+-----------------
+Empty Warehouse 01 (Poly Haven、CC0)
+https://polyhaven.com/a/empty_warehouse_01
