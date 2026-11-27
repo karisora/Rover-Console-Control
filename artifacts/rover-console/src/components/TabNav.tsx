@@ -1,6 +1,6 @@
-import { FlaskConical, Radio, Route } from "lucide-react";
+import { Radio, FlaskConical } from "lucide-react";
 
-export type AppTab = "operation" | "sim-to-real" | "design";
+export type AppTab = "operation" | "design";
 
 interface TabNavProps {
   active: AppTab;
@@ -12,19 +12,13 @@ export function TabNav({ active, onChange }: TabNavProps) {
     {
       id: "operation",
       label: "OPERATION",
-      labelJa: "Live rover control",
+      labelJa: "実機操作",
       icon: <Radio className="w-3.5 h-3.5" />,
-    },
-    {
-      id: "sim-to-real",
-      label: "SIM-TO-REAL",
-      labelJa: "Simulation bridge",
-      icon: <Route className="w-3.5 h-3.5" />,
     },
     {
       id: "design",
       label: "DESIGN LAB",
-      labelJa: "Design and simulation",
+      labelJa: "設計・シミュレーション",
       icon: <FlaskConical className="w-3.5 h-3.5" />,
     },
   ];

@@ -26,12 +26,9 @@ const BRIDGE_HOST = process.env.BRIDGE_HOST || "127.0.0.1";
 const HEARTBEAT_ID = process.env.HEARTBEAT_ID || "0x410";
 const HEARTBEAT_VALUE = Number(process.env.HEARTBEAT_VALUE || 0);
 const HEARTBEAT_INTERVAL_MS = Number(process.env.HEARTBEAT_INTERVAL_MS || 1000);
-const AZURE_OPENAI_ENDPOINT = (process.env.AZURE_OPENAI_ENDPOINT || "https://lumos-rover-01.openai.azure.com/openai/v1").replace(/\/+$/, "");
-const AZURE_OPENAI_DEPLOYMENT = process.env.AZURE_OPENAI_DEPLOYMENT || "gpt-4.1-mini";
-const AZURE_OPENAI_API_KEY = process.env.AZURE_OPENAI_API_KEY || process.env.OPENAI_API_KEY || "";
 // Bumped whenever the bridge wire protocol changes. The launcher uses this
 // to detect a stale older bridge process and kill it before reusing.
-const BRIDGE_VERSION = "2026.05.22-sim-to-real";
+const BRIDGE_VERSION = "2026.05.10-comms";
 
 // Runtime diagnostics surfaced via /api/healthz so we can debug from the UI.
 const stats = {
@@ -248,7 +245,7 @@ function packetsFor(action, speed) {
 function cors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Azure-OpenAI-Key,X-Azure-OpenAI-Endpoint,X-Azure-OpenAI-Deployment");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
   res.setHeader("Access-Control-Max-Age", "86400");
   // Local Network Access (Chrome): allow private/loopback access from secure origins.
   res.setHeader("Access-Control-Allow-Private-Network", "true");
@@ -296,63 +293,6 @@ function readJson(req) {
     });
     req.on("error", reject);
   });
-}
-
-function extractJsonObject(text) {
-  const cleaned = String(text || "")
-    .trim()
-    .replace(/^```(?:json)?\s*/i, "")
-    .replace(/\s*```$/i, "");
-  const start = cleaned.indexOf("{");
-  const end = cleaned.lastIndexOf("}");
-  if (start < 0 || end < start) throw new Error("model did not return JSON");
-  return JSON.parse(cleaned.slice(start, end + 1));
-}
-
-function headerValue(req, name) {
-  const value = req.headers[name.toLowerCase()];
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function modelConfigFromRequest(req) {
-  return {
-    endpoint: (headerValue(req, "X-Azure-OpenAI-Endpoint") || AZURE_OPENAI_ENDPOINT).replace(/\/+$/, ""),
-    deployment: headerValue(req, "X-Azure-OpenAI-Deployment") || AZURE_OPENAI_DEPLOYMENT,
-    apiKey: headerValue(req, "X-Azure-OpenAI-Key") || AZURE_OPENAI_API_KEY,
-  };
-}
-
-async function callRoverModel(req, messages, temperature = 0.25) {
-  const { endpoint, deployment, apiKey } = modelConfigFromRequest(req);
-  if (!apiKey) throw new Error("Azure OpenAI API key is not configured");
-  const response = await fetch(`${endpoint}/chat/completions`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-      "api-key": apiKey,
-    },
-    body: JSON.stringify({
-      model: deployment,
-      messages,
-      temperature,
-    }),
-    signal: AbortSignal.timeout(45000),
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(data?.error?.message || `model request failed with ${response.status}`);
-  }
-  const content = data?.choices?.[0]?.message?.content;
-  if (!content) throw new Error("model returned an empty response");
-  return content;
-}
-
-function sendModelError(res, error) {
-  const message = error instanceof Error ? error.message : "model request failed";
-  const status = message.includes("not configured") ? 503 : 502;
-  res.writeHead(status, { "Content-Type": "application/json" });
-  res.end(JSON.stringify({ ok: false, error: message }));
 }
 
 const server = http.createServer(async (req, res) => {
@@ -405,72 +345,6 @@ const server = http.createServer(async (req, res) => {
         heartbeat: { id: HEARTBEAT_ID, value: HEARTBEAT_VALUE, intervalMs: HEARTBEAT_INTERVAL_MS },
         stats,
       }));
-      return;
-    }
-    if (req.method === "POST" && (path === "/api/design/analysis" || path === "/design/analysis")) {
-      try {
-        const body = await readJson(req);
-        const schema = {
-          recommendations: [
-            { id: "4wheel | 6wheel | crawler | legged", score: 0, reasons: ["short English reason, max 4 items"], warnings: ["short English warning, only when needed"] },
-          ],
-          narrative: "English summary in 2 sentences or fewer",
-        };
-        const content = await callRoverModel(req, [
-          {
-            role: "system",
-            content: [
-              "You are an AI specialized in planetary and lunar exploration rover design review.",
-              "Use structure parameters, mission conditions, mounted modules, and local physics scores to choose the rover form.",
-              "Adopt only the minimum safety mechanisms needed for a credible rover: basic stability margin, traction appropriate to the terrain, essential fault tolerance, and enough power margin for the mission.",
-              "Among rover forms that satisfy those minimum safety requirements, prefer the lowest-cost, simplest, and easiest-to-build option.",
-              "Do not choose an expensive or complex rover form unless the cheaper forms fail the minimum safety requirements for the selected terrain, payload, or mission duration.",
-              "The final ranking must be your AI design judgment, not a blind copy of the heuristic scores.",
-              "Return JSON only. Do not put markdown or prose outside the JSON object.",
-            ].join("\n"),
-          },
-          {
-            role: "user",
-            content: [
-              "Evaluate this rover design state and return the recommendation in the requested JSON schema.",
-              `JSON schema: ${JSON.stringify(schema)}`,
-              `Design state: ${JSON.stringify(body)}`,
-            ].join("\n\n"),
-          },
-        ]);
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ ok: true, source: "azure-openai", ...extractJsonObject(content) }));
-      } catch (e) {
-        sendModelError(res, e);
-      }
-      return;
-    }
-    if (req.method === "POST" && (path === "/api/design/chat" || path === "/design/chat")) {
-      try {
-        const body = await readJson(req);
-        const rawMessages = Array.isArray(body.messages) ? body.messages : [];
-        const messages = rawMessages
-          .filter((message) => message && (message.role === "user" || message.role === "assistant") && typeof message.content === "string")
-          .slice(-10)
-          .map((message) => ({ role: message.role, content: message.content.slice(0, 4000) }));
-        const reply = await callRoverModel(req, [
-          {
-            role: "system",
-            content: [
-              "You are the consultation AI for a planetary and lunar rover design lab.",
-              "Use the current design context and reply in English with practical, testable engineering advice.",
-              "Favor low-cost choices that still meet minimum credible safety requirements. Avoid adding expensive redundancy or complex mechanisms unless they directly reduce a clear mission risk.",
-              "Keep the answer concise. When helpful, separate recommended changes, rationale, and cautions.",
-              `Current design context: ${JSON.stringify({ mission: body.config, structure: body.params })}`,
-            ].join("\n"),
-          },
-          ...messages,
-        ], 0.35);
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ ok: true, message: reply }));
-      } catch (e) {
-        sendModelError(res, e);
-      }
       return;
     }
     if (req.method === "POST" && (path === "/api/rover/command" || path === "/rover/command")) {

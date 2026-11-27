@@ -5,12 +5,6 @@ import {
   ALL_SLOTS, MODULE_CATALOG, type MissionConfig, type ModuleDef,
 } from "./missionTypes";
 import { MissionTimeline } from "./MissionTimeline";
-import {
-  getStoredDesignAiApiKey,
-  requestDesignAnalysis,
-  setStoredDesignAiApiKey,
-  type ModelRecommendation,
-} from "./designAiClient";
 
 const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
 const rlVideoSrc   = `${BASE}/sim-rl.webm`;
@@ -18,7 +12,6 @@ const dtVideoSrc   = `${BASE}/sim-dt2.mp4`;
 const gazoVideoSrc = `${BASE}/sim-dt.mp4`;
 
 type PhaseState = "idle" | "running" | "done";
-type AiStatus = "idle" | "loading" | "model" | "fallback" | "error";
 
 interface RoverType {
   id: string;
@@ -112,57 +105,57 @@ function computeRecommendation(
   const rawScores = [score4, score6, scoreC, scoreL];
   const maxScore  = Math.max(...rawScores);
 
-  // Build physics-derived candidate notes for the model to review.
+  // Build reason strings per type
   const reasons4: string[] = [];
-  if (terrain === "flat") reasons4.push("Efficient on flat mare terrain");
-  if (priority === "speed") reasons4.push("Lightweight and fast");
-  if (totalWeight < 4) reasons4.push("Efficient with a low payload");
-  reasons4.push("Simple control stack and low cost");
+  if (terrain === "flat") reasons4.push("フラット地形に最適");
+  if (priority === "speed") reasons4.push("軽量・高速移動");
+  if (totalWeight < 4) reasons4.push("低積載で効率的");
+  reasons4.push("シンプルな制御系・低コスト");
 
   const reasons6: string[] = [];
-  if (terrain === "rocky") reasons6.push("Strong mobility over rocky terrain");
-  reasons6.push("Better load distribution and stable center of mass");
-  if (totalWeight > 6) reasons6.push("Stable under heavier payloads");
-  if (hasLidar) reasons6.push("Deck area is suitable for sensor payloads");
+  if (terrain === "rocky") reasons6.push("岩礫地形の走破性");
+  reasons6.push("荷重分散・安定した重心");
+  if (totalWeight > 6) reasons6.push("ペイロード搭載時の安定性");
+  if (hasLidar) reasons6.push("センサー搭載に適したデッキ面積");
 
   const reasonsC: string[] = [];
-  if (terrain === "sandy") reasonsC.push("Best traction on loose regolith");
-  if (hasDrill || hasArm) reasonsC.push("Supports heavy front work tools");
-  if (hasRTG) reasonsC.push("Works well with a low-mounted RTG mass");
-  reasonsC.push("Highest contact patch and grip");
+  if (terrain === "sandy") reasonsC.push("砂地・軟弱地盤に最強");
+  if (hasDrill || hasArm) reasonsC.push("重前部作業機器を安定保持");
+  if (hasRTG) reasonsC.push("RTG搭載の低重心に対応");
+  reasonsC.push("最高のグリップ力");
 
   const reasonsL: string[] = [];
-  if (terrain === "steep") reasonsL.push("Can step over slopes and ledges");
-  if (scienceCount >= 2) reasonsL.push("Precise positioning for science observations");
-  if (hasArm) reasonsL.push("High precision coordination with the arm");
-  reasonsL.push("Best terrain adaptability");
+  if (terrain === "steep") reasonsL.push("急傾斜・段差を踏破");
+  if (scienceCount >= 2) reasonsL.push("精密ポジショニングで科学計測");
+  if (hasArm) reasonsL.push("アームとの協調動作が高精度");
+  reasonsL.push("不整地への適応力が最高");
 
   // Warnings
   // Module-only totalWeight; total system = +10 kg chassis
   const systemMass = totalWeight + 10;
   const warn4: string[] = [];
-  if (systemMass > 28) warn4.push(`System mass ${systemMass.toFixed(1)} kg is near the 30 kg limit`);
-  if (totalWeight > 16) warn4.push(`Module mass ${totalWeight.toFixed(1)} kg may overload a 4-wheel chassis`);
-  if (terrain === "sandy") warn4.push("Higher sinkage risk in loose regolith");
+  if (systemMass > 28) warn4.push(`システム総質量 ${systemMass.toFixed(1)} kg — 30 kg 上限に接近`);
+  if (totalWeight > 16) warn4.push(`モジュール質量 ${totalWeight.toFixed(1)} kg は 4 輪に過負荷の可能性`);
+  if (terrain === "sandy") warn4.push("砂地でのスタックリスク");
 
   const warn6: string[] = [];
-  if (systemMass > 28) warn6.push(`System mass ${systemMass.toFixed(1)} kg is near the 30 kg limit`);
-  if (priority === "speed") warn6.push("Less agile than a 4-wheel chassis");
+  if (systemMass > 28) warn6.push(`システム総質量 ${systemMass.toFixed(1)} kg — 30 kg 上限に接近`);
+  if (priority === "speed") warn6.push("4輪より機動性がやや低下");
 
   const warnC: string[] = [];
-  if (systemMass > 28) warnC.push(`System mass ${systemMass.toFixed(1)} kg is near the 30 kg limit`);
-  if (terrain === "steep") warnC.push("Track slip risk on steep slopes");
+  if (systemMass > 28) warnC.push(`システム総質量 ${systemMass.toFixed(1)} kg — 30 kg 上限に接近`);
+  if (terrain === "steep") warnC.push("急傾斜での脱輪リスク");
 
   const warnL: string[] = [];
-  if (totalWeight > 10) warnL.push(`Module mass ${totalWeight.toFixed(1)} kg is heavy for legs`);
-  if (systemMass > 28) warnL.push(`System mass ${systemMass.toFixed(1)} kg is near the 30 kg limit`);
-  if (!hasSolar && !hasRTG) warnL.push("Long-duration power needs review");
+  if (totalWeight > 10) warnL.push(`モジュール質量 ${totalWeight.toFixed(1)} kg は脚部への負担大`);
+  if (systemMass > 28) warnL.push(`システム総質量 ${systemMass.toFixed(1)} kg — 30 kg 上限に接近`);
+  if (!hasSolar && !hasRTG) warnL.push("長期電源を要検討");
 
   const types: RoverType[] = [
-    { id: "4wheel",  label: "4-Wheel Drive",  labelJa: "Four-wheel rover", icon: "🚗", score: score4,  reasons: reasons4,  warnings: warn4,  color: "#22d3ee" },
-    { id: "6wheel",  label: "6-Wheel Drive",  labelJa: "Six-wheel rover",  icon: "🚙", score: score6,  reasons: reasons6,  warnings: warn6,  color: "#34d399" },
-    { id: "crawler", label: "Crawler",        labelJa: "Tracked rover",    icon: "🦾", score: scoreC, reasons: reasonsC, warnings: warnC,  color: "#fb923c" },
-    { id: "legged",  label: "Legged",         labelJa: "Legged rover",     icon: "🕷️", score: scoreL,  reasons: reasonsL,  warnings: warnL,  color: "#a78bfa" },
+    { id: "4wheel",  label: "4-Wheel Drive",  labelJa: "４輪型",    icon: "🚗", score: score4,  reasons: reasons4,  warnings: warn4,  color: "#22d3ee" },
+    { id: "6wheel",  label: "6-Wheel Drive",  labelJa: "６輪型",    icon: "🚙", score: score6,  reasons: reasons6,  warnings: warn6,  color: "#34d399" },
+    { id: "crawler", label: "Crawler",        labelJa: "クローラー型", icon: "🦾", score: scoreC, reasons: reasonsC, warnings: warnC,  color: "#fb923c" },
+    { id: "legged",  label: "Legged",         labelJa: "脚型",      icon: "🕷️", score: scoreL,  reasons: reasonsL,  warnings: warnL,  color: "#a78bfa" },
   ];
 
   // Normalize 0-100
@@ -178,9 +171,9 @@ interface Phase {
 }
 
 const PHASES: Phase[] = [
-  { id: 1, title: "Loading NVIDIA Isaac Lab dynamics model",       label: "RL Simulation",         src: rlVideoSrc,   durationMs: 3000, icon: <Cpu      className="w-4 h-4" /> },
-  { id: 2, title: "Estimating center-of-mass shift and slip ratio", label: "Digital Twin Analysis", src: dtVideoSrc,   durationMs: 4000, icon: <Activity className="w-4 h-4" /> },
-  { id: 3, title: "Verifying rover behavior in the digital twin",   label: "Gazebo Verification",   src: gazoVideoSrc, durationMs: 5000, icon: <Bot      className="w-4 h-4" /> },
+  { id: 1, title: "NVIDIA Isaac Lab 力学モデルを読み込み中",    label: "RL Simulation",         src: rlVideoSrc,   durationMs: 3000, icon: <Cpu      className="w-4 h-4" /> },
+  { id: 2, title: "重心変動とスリップ率を計算中",               label: "Digital Twin Analysis", src: dtVideoSrc,   durationMs: 4000, icon: <Activity className="w-4 h-4" /> },
+  { id: 3, title: "デジタルツイン上でローバーを走行検証中",      label: "Gazebo Verification",   src: gazoVideoSrc, durationMs: 5000, icon: <Bot      className="w-4 h-4" /> },
 ];
 
 // ── PhaseCard ─────────────────────────────────────────────────────────────────
@@ -262,40 +255,6 @@ function ResultCard({ rover, rank }: { rover: RoverType; rank: number }) {
   );
 }
 
-function clampScore(value: number) {
-  if (!Number.isFinite(value)) return 50;
-  return Math.max(5, Math.min(100, Math.round(value)));
-}
-
-function modelRecommendationsToRovers(
-  fallback: RoverType[],
-  modelRecommendations: ModelRecommendation[] | undefined,
-): RoverType[] {
-  if (!modelRecommendations?.length) return [];
-
-  const fallbackById = new Map(fallback.map((item) => [item.id, item]));
-  const used = new Set<string>();
-  const merged: RoverType[] = [];
-
-  for (const recommendation of modelRecommendations) {
-    const base = fallbackById.get(recommendation.id);
-    if (!base || used.has(recommendation.id)) continue;
-    used.add(recommendation.id);
-    merged.push({
-      ...base,
-      score: clampScore(recommendation.score),
-      reasons: Array.isArray(recommendation.reasons) && recommendation.reasons.length > 0
-        ? recommendation.reasons.slice(0, 4)
-        : base.reasons,
-      warnings: Array.isArray(recommendation.warnings)
-        ? recommendation.warnings.slice(0, 4)
-        : base.warnings,
-    });
-  }
-
-  return merged.sort((a, b) => b.score - a.score);
-}
-
 // ── Main export ───────────────────────────────────────────────────────────────
 export function SimulationFlow({ config }: { config: MissionConfig }) {
   const { params } = useRoverParams();
@@ -304,9 +263,6 @@ export function SimulationFlow({ config }: { config: MissionConfig }) {
   const [running, setRunning] = useState(false);
   const [done,    setDone]    = useState(false);
   const [results, setResults] = useState<RoverType[]>([]);
-  const [aiStatus, setAiStatus] = useState<AiStatus>("idle");
-  const [aiNarrative, setAiNarrative] = useState("");
-  const [apiKey, setApiKey] = useState(() => getStoredDesignAiApiKey());
   const timerRef    = useRef<ReturnType<typeof setTimeout>  | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -318,16 +274,7 @@ export function SimulationFlow({ config }: { config: MissionConfig }) {
     setPhaseStates(["idle", "idle", "idle"]);
     setPhaseProgress([0, 0, 0]);
     setRunning(false); setDone(false); setResults([]);
-    setAiStatus("idle");
-    setAiNarrative("");
   };
-
-  useEffect(() => {
-    return () => {
-      if (timerRef.current)    clearTimeout(timerRef.current);
-      if (intervalRef.current) clearInterval(intervalRef.current);
-    };
-  }, []);
 
   const startAnalysis = () => {
     reset();
@@ -352,32 +299,7 @@ export function SimulationFlow({ config }: { config: MissionConfig }) {
           setTimeout(() => runPhase(idx + 1), 300);
         } else {
           setRunning(false); setDone(true);
-          const fallback = computeRecommendation(params, config);
-          setResults([]);
-          setAiStatus("loading");
-          void requestDesignAnalysis({
-            config,
-            params,
-            heuristicCandidates: fallback.map((item) => ({
-              id: item.id,
-              score: item.score,
-              reasons: item.reasons,
-              warnings: item.warnings,
-            })),
-          })
-            .then((response) => {
-              const modelResults = modelRecommendationsToRovers(fallback, response.recommendations);
-              if (modelResults.length === 0) {
-                throw new Error("The AI model did not return a valid rover selection.");
-              }
-              setResults(modelResults);
-              setAiNarrative(response.narrative || "");
-              setAiStatus(response.source === "azure-openai" ? "model" : "fallback");
-            })
-            .catch((error) => {
-              setAiStatus("error");
-              setAiNarrative(error instanceof Error ? error.message : "AI model request failed");
-            });
+          setResults(computeRecommendation(params, config));
         }
       }, durationMs);
     };
@@ -392,24 +314,13 @@ export function SimulationFlow({ config }: { config: MissionConfig }) {
         <div>
           <p className="font-mono text-[10px] tracking-[0.3em] uppercase text-primary">AI Simulation Flow</p>
           <p className="text-[10px] text-muted-foreground mt-0.5">
-            Three-phase physics analysis, then AI rover-form selection
+            3フェーズ物理解析 · NVIDIA Isaac Lab + Digital Twin + Gazebo
             {mountedCount > 0 && (
-              <span className="ml-2 text-primary">- {mountedCount} modules mounted</span>
+              <span className="ml-2 text-primary">— {mountedCount} モジュール搭載</span>
             )}
           </p>
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <input
-            type="password"
-            value={apiKey}
-            onChange={(event) => {
-              setApiKey(event.target.value);
-              setStoredDesignAiApiKey(event.target.value);
-            }}
-            placeholder="Azure OpenAI key"
-            spellCheck={false}
-            className="h-8 w-48 rounded border border-border bg-muted/20 px-2 font-mono text-[10px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary"
-          />
+        <div className="flex gap-2">
           {done && (
             <button onClick={reset} className="px-3 py-1.5 rounded bg-muted/40 border border-border font-mono text-[10px] tracking-wider text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
               RESET
@@ -420,7 +331,7 @@ export function SimulationFlow({ config }: { config: MissionConfig }) {
             disabled={running}
             className={`flex items-center gap-2 px-4 py-1.5 rounded border font-mono text-[10px] tracking-wider transition-colors ${running ? "bg-muted/20 border-muted text-muted-foreground cursor-not-allowed" : "bg-primary/20 border-primary/50 text-primary hover:bg-primary/30 cursor-pointer"}`}
           >
-            {running ? <><Loader2 className="w-3 h-3 animate-spin" /> ANALYZING...</> : <><Play className="w-3 h-3" /> START ANALYSIS</>}
+            {running ? <><Loader2 className="w-3 h-3 animate-spin" /> 解析中...</> : <><Play className="w-3 h-3" /> 解析開始</>}
           </button>
         </div>
       </div>
@@ -433,35 +344,19 @@ export function SimulationFlow({ config }: { config: MissionConfig }) {
       </div>
 
       {/* Results */}
-      {done && (aiStatus === "loading" || aiStatus === "error" || results.length > 0) && (
+      {done && results.length > 0 && (
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-3">
             <span className="font-mono text-[10px] text-primary tracking-[0.3em]">ANALYSIS RESULT</span>
-            <span className="font-mono text-[10px] text-muted-foreground">AI-selected rover form</span>
-            <span className="font-mono text-[9px] tracking-[0.2em] uppercase text-muted-foreground border border-border rounded px-1.5 py-0.5">
-              {aiStatus === "loading" ? "MODEL THINKING" : aiStatus === "model" ? "AZURE MODEL" : aiStatus === "error" ? "MODEL ERROR" : "MODEL RESULT"}
-            </span>
+            <span className="font-mono text-[10px] text-muted-foreground">最適機体構成</span>
             <span className="flex-1 h-px bg-border" />
           </div>
-          {aiNarrative && (
-            <div className={`border rounded px-3 py-2 text-xs leading-relaxed ${aiStatus === "error" ? "border-orange-400/30 bg-orange-400/5 text-orange-300" : "border-primary/30 bg-primary/5 text-muted-foreground"}`}>
-              {aiNarrative}
-            </div>
-          )}
-          {aiStatus === "loading" && (
-            <div className="border border-primary/30 bg-primary/5 rounded px-3 py-3 flex items-center gap-2 font-mono text-[10px] tracking-[0.2em] text-primary">
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              WAITING FOR AI ROVER SELECTION
-            </div>
-          )}
-          {results.length > 0 && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {results.map((r, i) => <ResultCard key={r.id} rover={r} rank={i} />)}
-            </div>
-          )}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {results.map((r, i) => <ResultCard key={r.id} rover={r} rank={i} />)}
+          </div>
 
           {/* Mission feasibility: timeline, budget, launch window */}
-          {results.length > 0 && <MissionTimeline config={config} optimalRoverId={results[0].id} />}
+          <MissionTimeline config={config} optimalRoverId={results[0].id} />
         </div>
       )}
     </div>

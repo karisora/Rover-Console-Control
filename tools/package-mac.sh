@@ -1,120 +1,119 @@
 #!/usr/bin/env bash
-# Build a clickable macOS .app for Rover Console.
+# ============================================================
+#  LUMOS-1 Rover Console — Mac パッケージビルドスクリプト
+# ============================================================
 #
-# Usage:
+# 使い方:
+#   chmod +x tools/package-mac.sh
 #   ./tools/package-mac.sh
 #
-# Output:
-#   dist-mac/rover-console-mac/Rover Console.app
-#   dist-mac/rover-console-mac.tar.gz
+# 出力: dist-mac/lumos1-console-mac.tar.gz
+#
+# tar.gz を展開すると:
+#   lumos1-console-mac/
+#     LumOS1-Console.app    ← ダブルクリック起動
+#     start.command        ← Terminal で起動
+#     README.txt
+# ============================================================
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 DIST_DIR="$ROOT_DIR/dist-mac"
-PKG_DIR="$DIST_DIR/rover-console-mac"
-APP_NAME="Rover Console"
+APP_NAME="LumOS1-Console"
+PKG_DIR="$DIST_DIR/lumos1-console-mac"
 APP_BUNDLE="$PKG_DIR/$APP_NAME.app"
-CONTENTS_DIR="$APP_BUNDLE/Contents"
-MACOS_DIR="$CONTENTS_DIR/MacOS"
-RESOURCES_DIR="$CONTENTS_DIR/Resources"
-BRIDGE_DIR="$RESOURCES_DIR/bridge"
-ARCHIVE="$DIST_DIR/rover-console-mac.tar.gz"
+ARCHIVE="$DIST_DIR/lumos1-console-mac.tar.gz"
 
 echo ""
 echo "=========================================="
-echo "  Rover Console - Mac App Build"
+echo "  LUMOS-1 Rover Console — Mac Build"
 echo "=========================================="
 echo ""
 
-command -v pnpm >/dev/null 2>&1 || {
-  echo "ERROR: pnpm was not found. Install pnpm, then rerun this script." >&2
-  exit 1
-}
-
-command -v node >/dev/null 2>&1 || {
-  echo "ERROR: Node.js was not found. Install Node.js 18 or newer, then rerun this script." >&2
-  exit 1
-}
-
-echo "[1/5] Installing workspace dependencies..."
+# ── 1. Vite ビルド ───────────────────────────────────────────
+echo "[1/5] Rover Console (Vite) をビルド中..."
 cd "$ROOT_DIR"
-CI=true pnpm install --ignore-scripts --no-frozen-lockfile
-
-echo "[2/5] Building Rover Console web UI..."
 PORT=5050 BASE_PATH=/ pnpm --filter @workspace/rover-console run build
+echo "      → artifacts/rover-console/dist/public/ 完了"
 
-echo "[3/5] Creating .app bundle..."
+# ── 2. ディレクトリ初期化 ─────────────────────────────────────
+echo "[2/5] パッケージディレクトリを構成中..."
 rm -rf "$PKG_DIR"
-mkdir -p "$MACOS_DIR" "$BRIDGE_DIR"
+mkdir -p "$PKG_DIR"
 
-cp "$SCRIPT_DIR/mac-app/Info.plist" "$CONTENTS_DIR/Info.plist"
-cp "$SCRIPT_DIR/mac-app/RoverConsole" "$MACOS_DIR/RoverConsole"
-chmod +x "$MACOS_DIR/RoverConsole"
+# ── 3. .app バンドル ─────────────────────────────────────────
+# macOS .app 構造:
+#   LumOS1-Console.app/
+#     Contents/
+#       Info.plist
+#       MacOS/LumOS1-Console   ← 実行シェルスクリプト
+#       Resources/
+#         rover-bridge.mjs
+#         public/
+mkdir -p "$APP_BUNDLE/Contents/MacOS"
+mkdir -p "$APP_BUNDLE/Contents/Resources"
 
-cp "$SCRIPT_DIR/rover-bridge.mjs" "$BRIDGE_DIR/rover-bridge.mjs"
-cp -R "$ROOT_DIR/artifacts/rover-console/dist/public" "$BRIDGE_DIR/public"
+# Info.plist
+cat > "$APP_BUNDLE/Contents/Info.plist" << 'PLIST'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleExecutable</key>
+  <string>LumOS1-Console</string>
+  <key>CFBundleIdentifier</key>
+  <string>jp.lumos1.rover-console</string>
+  <key>CFBundleName</key>
+  <string>LumOS1-Console</string>
+  <key>CFBundleDisplayName</key>
+  <string>LUMOS-1 Rover Console</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleVersion</key>
+  <string>1.0</string>
+  <key>CFBundleShortVersionString</key>
+  <string>1.0</string>
+  <key>LSMinimumSystemVersion</key>
+  <string>10.15</string>
+  <key>NSHighResolutionCapable</key>
+  <true/>
+</dict>
+</plist>
+PLIST
 
-if [ "$(head -c 2 "$MACOS_DIR/RoverConsole")" != "#!" ]; then
-  echo "ERROR: launcher script does not start with a shebang." >&2
-  exit 1
-fi
+# ランチャー、ブリッジ、UI をコピー
+TEMPLATE_DIR="$SCRIPT_DIR/lumos1-mac"
+install -m 755 "$TEMPLATE_DIR/$APP_NAME" "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
+install -m 755 "$TEMPLATE_DIR/launch-console.sh" "$APP_BUNDLE/Contents/Resources/launch-console.sh"
+install -m 755 "$TEMPLATE_DIR/start.command" "$PKG_DIR/start.command"
+cp "$TEMPLATE_DIR/README.txt" "$PKG_DIR/README.txt"
+cp "$SCRIPT_DIR/rover-bridge.mjs" "$APP_BUNDLE/Contents/Resources/rover-bridge.mjs"
+cp -R "$ROOT_DIR/artifacts/rover-console/dist/public" "$APP_BUNDLE/Contents/Resources/public"
 
-echo "[4/5] Writing README..."
-cat > "$PKG_DIR/README.txt" <<'README'
-Rover Console - Mac App
-=======================
+echo "[3/5] .app / start.command / README.txt を生成完了"
 
-起動方法
---------
-Rover Console.app をダブルクリックしてください。
+# ── 6. tar.gz 作成 ───────────────────────────────────────────
+echo "[4/5] tar.gz を作成中..."
+cd "$DIST_DIR"
+tar \
+  --exclude="*.DS_Store" \
+  --exclude="__MACOSX" \
+  -czf "$ARCHIVE" \
+  "lumos1-console-mac"
 
-起動すると、アプリ内に同梱されたローカル bridge が立ち上がり、
-ブラウザで Rover Console が自動的に開きます。
+ARCHIVE_SIZE=$(du -sh "$ARCHIVE" | cut -f1)
 
-初回起動で macOS に止められる場合
----------------------------------
-未署名のローカルアプリなので、初回だけ以下のどちらかを使ってください。
-
-1. Rover Console.app を右クリックして「開く」を選ぶ
-2. それでも開けない場合は、このフォルダで以下を実行する
-
-   xattr -rd com.apple.quarantine "Rover Console.app"
-
-必要なもの
-----------
-- macOS 10.15 以降
-- Node.js 18 以上
-
-ローバー実機を操作する場合
---------------------------
-Mac を LumOS1-Pico2W Wi-Fi AP に接続してからアプリを起動してください。
-
-ログ
-----
-~/Library/Logs/RoverConsole/rover-console.log
-
-停止
-----
-Web コンソール右上の SHUTDOWN ボタンで bridge を停止できます。
-README
-
-echo "[5/5] Creating archive..."
-mkdir -p "$DIST_DIR"
-rm -f "$ARCHIVE"
-(
-  cd "$DIST_DIR"
-  tar --exclude="*.DS_Store" --exclude="__MACOSX" -czf "$ARCHIVE" "rover-console-mac"
-)
-
-ARCHIVE_SIZE="$(du -sh "$ARCHIVE" | cut -f1)"
-
+echo "[5/5] 完了!"
 echo ""
-echo "Done."
-echo "App:     $APP_BUNDLE"
-echo "Archive: $ARCHIVE ($ARCHIVE_SIZE)"
+echo "=========================================="
+echo "  出力: $ARCHIVE"
+echo "  サイズ: $ARCHIVE_SIZE"
 echo ""
-echo "Open with:"
-echo "  open \"$APP_BUNDLE\""
+echo "  展開すると lumos1-console-mac/ が現れます:"
+echo "    LumOS1-Console.app  ← .app"
+echo "    start.command       ← ダブルクリック確実起動"
+echo "    README.txt"
+echo "=========================================="
 echo ""

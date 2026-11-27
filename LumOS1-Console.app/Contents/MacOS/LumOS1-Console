@@ -1,0 +1,3 @@
+#!/bin/bash
+CONTENTS="$(cd "$(dirname "$0")/.." && pwd)" || exit 1
+exec /bin/bash "$CONTENTS/Resources/launch-console.sh" --background
