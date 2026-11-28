@@ -39,7 +39,7 @@ const TelemetryContext = createContext<TelemetryContextType | undefined>(undefin
 
 export function TelemetryProvider({ children }: { children: React.ReactNode }) {
   const [logs, setLogs] = useState<TelemetryEntry[]>([]);
-  const [speed, setSpeedValue] = useState(30);
+  const [speed, setSpeedValue] = useState(15);
   const [intent, setIntent] = useState<DriveIntent>({ action: 'stop', speed: 0 });
   const throttle = useRef(speed);
   const activeAction = useRef<DriveAction>('stop');
