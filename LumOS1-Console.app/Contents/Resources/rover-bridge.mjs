@@ -217,9 +217,8 @@ function probe() {
 //   0x405 = Solar panel FOLD   (close)
 const WHEELS = { FR: "0x400", RR: "0x401", FL: "0x402", RL: "0x403" };
 function packetsFor(action, speed) {
-  // Accept signed speed in [-100, 100]. Backward is encoded as a negative
-  // speed by the client; rotate/strafe are direction-independent so they
-  // use the magnitude.
+  // The client supplies the signed command for straight driving.
+  // In-place turns use the magnitude and choose a sign for each side.
   const s = Math.max(-100, Math.min(100, Math.round(speed)));
   const m = Math.abs(s);
   switch (action) {

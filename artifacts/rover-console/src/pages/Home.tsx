@@ -1,5 +1,4 @@
 import { DriveControls } from "@/components/DriveControls";
-import { SpeedControl } from "@/components/SpeedControl";
 import { VoiceTrigger } from "@/components/VoiceTrigger";
 import { CommandPanel } from "@/components/CommandPanel";
 import { TelemetryLog } from "@/components/TelemetryLog";
@@ -23,30 +22,24 @@ export default function Home() {
             <DriveControls />
           </section>
 
-          <section className="grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-5">
-            <div>
-              <SectionLabel num="03" title="Throttle" />
-              <SpeedControl />
-            </div>
-            <div>
-              <SectionLabel num="04" title="Voice Spell" />
-              <VoiceTrigger />
-            </div>
+          <section>
+            <SectionLabel num="03" title="Voice Spell" />
+            <VoiceTrigger />
           </section>
 
           <section>
-            <SectionLabel num="05" title="Raw Command" />
+            <SectionLabel num="04" title="Raw Command" />
             <CommandPanel />
           </section>
         </div>
 
         <aside className="flex flex-col gap-4 lg:gap-5 min-w-0">
           <section>
-            <SectionLabel num="06" title="Comms Link" />
+            <SectionLabel num="05" title="Comms Link" />
             <CommsPanel />
           </section>
           <section className="flex flex-col flex-1 min-h-0">
-            <SectionLabel num="07" title="Telemetry" />
+            <SectionLabel num="06" title="Telemetry" />
             <div className="flex-1 min-h-[280px] lg:min-h-[320px]">
               <TelemetryLog />
             </div>

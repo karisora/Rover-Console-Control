@@ -1,46 +1,16 @@
-import React, { useEffect, useRef, useCallback, useState } from 'react';
-import { useSendRoverMove, useSendRoverCommand } from "@workspace/api-client-react";
+import { useEffect, useCallback, useState } from 'react';
+import { useSendRoverCommand } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
-import { useTelemetry } from "./TelemetryContext";
+import { SpeedControl } from "./SpeedControl";
+import { useTelemetry, type DriveAction } from "./TelemetryContext";
 import { ArrowUp, ArrowDown, RotateCw, RotateCcw, CornerUpLeft, CornerUpRight, Square, Sun, type LucideIcon } from "lucide-react";
-import type { RoverMoveAction } from "@workspace/api-client-react";
 
 export function DriveControls() {
-  const sendMove    = useSendRoverMove();
   const sendCommand = useSendRoverCommand();
-  const { addLog, speed, setIntent } = useTelemetry();
-  const activeAction = useRef<RoverMoveAction | null>(null);
-  const mutateFnRef = useRef(sendMove.mutate);
-  mutateFnRef.current = sendMove.mutate;
+  const { addLog, drive, cancelSpeedUpdate } = useTelemetry();
 
   // Solar panel state: null = unknown, "deployed" | "folded"
   const [solarState, setSolarState] = useState<"deployed" | "folded" | null>(null);
-
-  const handleAction = useCallback((action: RoverMoveAction) => {
-    activeAction.current = action;
-    const signed = action === 'backward' ? -Math.abs(speed) : speed;
-    const payload = { action, speed: action === 'stop' ? 0 : signed };
-    if (action !== 'spell') setIntent({ action, speed: signed });
-    mutateFnRef.current(
-      { data: payload },
-      {
-        onSuccess: () => addLog(JSON.stringify(payload), 'sent'),
-        onError:   () => addLog(`FAILED: ${JSON.stringify(payload)}`, 'failed'),
-      }
-    );
-  }, [speed, addLog, setIntent]);
-
-  const handleStop = useCallback(() => {
-    activeAction.current = 'stop';
-    setIntent({ action: 'stop', speed: 0 });
-    mutateFnRef.current(
-      { data: { action: 'stop', speed: 0 } },
-      {
-        onSuccess: () => addLog('{"action":"stop","speed":0}', 'sent'),
-        onError:   () => addLog('FAILED: {"action":"stop"}',   'failed'),
-      }
-    );
-  }, [addLog, setIntent]);
 
   const handleSolar = useCallback((deploy: boolean) => {
     const id    = deploy ? "0x404" : "0x405";
@@ -60,20 +30,24 @@ export function DriveControls() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.repeat) return;
-      if (document.activeElement?.tagName === 'INPUT') return;
+      const focused = document.activeElement;
+      if (focused instanceof HTMLInputElement && focused.type !== 'range') return;
       switch (e.key.toLowerCase()) {
-        case 'w': handleAction('forward');      break;
-        case 's': handleAction('backward');     break;
-        case 'a': handleAction('rotate_left');  break;
-        case 'd': handleAction('rotate_right'); break;
-        case 'q': handleAction('strafe_left');  break;
-        case 'e': handleAction('strafe_right'); break;
-        case ' ': e.preventDefault(); handleStop(); break;
+        case 'w': drive('forward');      break;
+        case 's': drive('backward');     break;
+        case 'a': drive('rotate_left');  break;
+        case 'd': drive('rotate_right'); break;
+        case 'q': drive('strafe_left');  break;
+        case 'e': drive('strafe_right'); break;
+        case ' ': e.preventDefault(); drive('stop'); break;
       }
     };
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleAction, handleStop]);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      cancelSpeedUpdate();
+    };
+  }, [drive, cancelSpeedUpdate]);
 
   const ControlButton = ({
     icon: Icon,
@@ -82,7 +56,7 @@ export function DriveControls() {
     variant = "secondary",
   }: {
     icon: LucideIcon;
-    action: RoverMoveAction;
+    action: DriveAction;
     label: string;
     variant?: "secondary" | "destructive" | "default";
   }) => (
@@ -93,7 +67,7 @@ export function DriveControls() {
           ? 'bg-destructive/20 border-destructive/50 text-destructive hover:bg-destructive hover:text-destructive-foreground'
           : 'bg-secondary/50 border-secondary hover:bg-primary/20 hover:text-primary hover:border-primary/50'
       }`}
-      onClick={() => (action === 'stop' ? handleStop() : handleAction(action))}
+      onClick={() => drive(action)}
     >
       <Icon className="w-8 h-8" />
       <span>{label}</span>
@@ -105,6 +79,7 @@ export function DriveControls() {
 
   return (
     <div className="flex flex-col gap-2">
+      <SpeedControl />
       {/* ── Drive controls ──────────────────────────────────────────────── */}
       <div className="grid grid-cols-3 gap-2 p-4 bg-card border border-border">
         <ControlButton icon={CornerUpLeft}  action="strafe_left"  label="VEER-L (Q)" />

@@ -88,6 +88,19 @@
   }
 }
 
+.drive-speed::-webkit-slider-thumb {
+  appearance: none;
+  @apply h-5 w-5 rounded-full border border-primary bg-background shadow;
+}
+
+.drive-speed::-moz-range-thumb {
+  @apply box-border h-5 w-5 rounded-full border border-primary bg-background shadow;
+}
+
+.drive-speed:focus-visible {
+  @apply rounded outline-2 outline-offset-2 outline-primary;
+}
+
 /* Animate position only. Opacity is controlled by the wrapping element so
    that hiding a pulse via opacity:0 is not overridden by an in-flight
    animated opacity value (CSS-animated properties win over inline style
